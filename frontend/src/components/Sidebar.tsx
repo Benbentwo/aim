@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { useSessionStore, SessionState, SessionStatus } from '../stores/sessions'
+import { useAimStore, WorkspaceState, SessionState, SessionStatus } from '../stores/sessions'
 
 interface SidebarProps {
-  onNewSession: () => void
+  onAddRepository: () => void
   onSettings: () => void
+  onNewSession: (workspaceId: string) => void
 }
 
 const statusColors: Record<SessionStatus, string> = {
@@ -14,7 +14,7 @@ const statusColors: Record<SessionStatus, string> = {
   errored:  'bg-red-500',
 }
 
-const agentBadgeColors: Record<string, string> = {
+const agentBadge: Record<string, string> = {
   claude: 'bg-indigo-800 text-indigo-200',
   codex:  'bg-green-800 text-green-200',
   shell:  'bg-slate-700 text-slate-300',
@@ -22,27 +22,11 @@ const agentBadgeColors: Record<string, string> = {
 
 function StatusDot({ status }: { status: SessionStatus }) {
   return (
-    <span
-      className={`inline-block w-2 h-2 rounded-full shrink-0 ${statusColors[status] ?? 'bg-slate-500'}`}
-    />
+    <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${statusColors[status] ?? 'bg-slate-500'}`} />
   )
 }
 
-function AgentBadge({ agent }: { agent: string }) {
-  return (
-    <span
-      className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold uppercase ${agentBadgeColors[agent] ?? 'bg-slate-700 text-slate-300'}`}
-    >
-      {agent}
-    </span>
-  )
-}
-
-function SessionTab({
-  session,
-  isActive,
-  onClick,
-}: {
+function SessionRow({ session, isActive, onClick }: {
   session: SessionState
   isActive: boolean
   onClick: () => void
@@ -50,62 +34,127 @@ function SessionTab({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-2.5 text-left rounded-lg transition-colors group ${
+      className={`w-full flex items-center gap-2 pl-7 pr-3 py-1.5 text-left rounded-md transition-colors text-xs ${
         isActive
           ? 'bg-slate-700 text-white'
-          : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+          : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
       }`}
     >
       <StatusDot status={session.status} />
-      <span className="flex-1 text-sm font-medium truncate">{session.name}</span>
-      <AgentBadge agent={session.agent} />
+      <span className="flex-1 truncate font-mono">{session.branch || session.name}</span>
+      <span className={`text-[10px] ${isActive ? 'text-slate-400' : 'text-slate-600'}`}>
+        {session.status === 'thinking' ? '…' : session.status === 'stopped' ? '■' : ''}
+      </span>
     </button>
   )
 }
 
-export default function Sidebar({ onNewSession, onSettings }: SidebarProps) {
-  const { sessions, activeSessionId, setActive } = useSessionStore()
+function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, onNewSession }: {
+  workspace: WorkspaceState
+  isActiveWs: boolean
+  activeSessionId: string | null
+  onSessionClick: (sessionId: string, workspaceId: string) => void
+  onNewSession: (workspaceId: string) => void
+}) {
+  const { toggleWorkspace } = useAimStore()
+  const anyThinking = workspace.sessions.some((s) => s.status === 'thinking' || s.status === 'waiting')
 
   return (
-    <div className="flex flex-col w-56 shrink-0 bg-[#131620] border-r border-slate-800 pt-10 no-select">
-      {/* New session button */}
-      <div className="px-3 mb-3">
-        <button
-          onClick={onNewSession}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          <span className="text-base leading-none">+</span>
-          <span>New</span>
-        </button>
-      </div>
+    <div>
+      {/* Workspace header row */}
+      <button
+        onClick={() => toggleWorkspace(workspace.id)}
+        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors group ${
+          isActiveWs && !workspace.expanded
+            ? 'bg-slate-700 text-white'
+            : 'text-slate-300 hover:bg-slate-800'
+        }`}
+      >
+        {/* Chevron */}
+        <span className={`text-slate-500 transition-transform text-xs ${workspace.expanded ? 'rotate-90' : ''}`}>
+          ▶
+        </span>
+        <span className="flex-1 text-sm font-medium truncate">{workspace.name}</span>
+        {anyThinking && (
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+        )}
+        <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold uppercase ${agentBadge[workspace.agent] ?? agentBadge.shell}`}>
+          {workspace.agent}
+        </span>
+      </button>
 
-      {/* Session tabs */}
-      <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
-        {sessions.map((session) => (
-          <SessionTab
-            key={session.id}
-            session={session}
-            isActive={session.id === activeSessionId}
-            onClick={() => setActive(session.id)}
+      {/* Sessions (visible when expanded) */}
+      {workspace.expanded && (
+        <div className="mt-0.5 space-y-0.5">
+          {workspace.sessions.map((s) => (
+            <SessionRow
+              key={s.id}
+              session={s}
+              isActive={s.id === activeSessionId}
+              onClick={() => onSessionClick(s.id, workspace.id)}
+            />
+          ))}
+          {/* + New session */}
+          <button
+            onClick={() => onNewSession(workspace.id)}
+            className="w-full flex items-center gap-2 pl-7 pr-3 py-1.5 text-xs text-slate-600 hover:text-indigo-400 hover:bg-slate-800 rounded-md transition-colors"
+          >
+            <span>+</span>
+            <span>New session</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function Sidebar({ onAddRepository, onSettings, onNewSession }: SidebarProps) {
+  const { workspaces, activeSessionId, activeWorkspaceId, setActiveSession } = useAimStore()
+
+  const handleSessionClick = (sessionId: string, workspaceId: string) => {
+    setActiveSession(sessionId, workspaceId)
+  }
+
+  return (
+    <div className="flex flex-col w-60 shrink-0 bg-[#131620] border-r border-slate-800 pt-10 no-select">
+      <div className="flex-1 overflow-y-auto px-2 space-y-1">
+        {workspaces.map((ws) => (
+          <WorkspaceRow
+            key={ws.id}
+            workspace={ws}
+            isActiveWs={ws.id === activeWorkspaceId}
+            activeSessionId={activeSessionId}
+            onSessionClick={handleSessionClick}
+            onNewSession={onNewSession}
           />
         ))}
-        {sessions.length === 0 && (
-          <p className="text-xs text-slate-600 text-center mt-8 px-2">
-            No sessions yet. Create one to get started.
+        {workspaces.length === 0 && (
+          <p className="text-xs text-slate-600 text-center mt-8 px-3">
+            No repositories yet.
           </p>
         )}
       </div>
 
-      {/* Settings icon at bottom */}
-      <div className="px-3 py-3 border-t border-slate-800">
+      {/* Bottom actions */}
+      <div className="px-3 py-3 border-t border-slate-800 space-y-1">
+        <button
+          onClick={onAddRepository}
+          className="w-full flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-sm transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          <span>Add repository</span>
+        </button>
         <button
           onClick={onSettings}
           className="w-full flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg text-sm transition-colors"
-          title="Settings"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
           <span>Settings</span>
         </button>
