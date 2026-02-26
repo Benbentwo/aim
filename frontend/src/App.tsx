@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import './style.css'
 import Sidebar from './components/Sidebar'
 import Terminal from './components/Terminal'
 import SessionHeader from './components/SessionHeader'
-import NewSessionDialog from './components/NewSessionDialog'
+import AddRepositoryDialog from './components/AddRepositoryDialog'
+import NewWorktreeSessionDialog from './components/NewWorktreeSessionDialog'
 import SettingsDialog from './components/Settings'
-import { useSessionStore } from './stores/sessions'
+import { useAimStore, AgentType, SessionState, WorkspaceState } from './stores/sessions'
 
 declare const window: Window & {
   runtime?: {
@@ -15,46 +16,78 @@ declare const window: Window & {
 }
 
 function App() {
-  const [showNewSession, setShowNewSession] = useState(false)
+  const [showAddRepo, setShowAddRepo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const { sessions, activeSessionId, setSessions, updateStatus } = useSessionStore()
-  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null
+  const [newSessionWorkspace, setNewSessionWorkspace] = useState<WorkspaceState | null>(null)
 
-  // Load persisted sessions on mount
+  const {
+    workspaces,
+    activeSessionId,
+    activeWorkspaceId,
+    setWorkspaces,
+    updateStatus,
+  } = useAimStore()
+
+  // Flatten all sessions for lookup
+  const allSessions = workspaces.flatMap((w) => w.sessions)
+  const activeSession = allSessions.find((s) => s.id === activeSessionId) ?? null
+
+  // Load workspaces from backend on mount
   useEffect(() => {
-    import('../wailsjs/go/session/Manager')
-      .then(({ ListSessions }) => ListSessions())
-      .then((list) => {
-        if (list && list.length > 0) {
-          setSessions(list as any)
-        }
+    import('../wailsjs/go/workspace/Manager')
+      .then(({ ListWorkspaces }) => ListWorkspaces())
+      .then((list: any[]) => {
+        if (!list || list.length === 0) return
+        const mapped: WorkspaceState[] = list.map((ws) => ({
+          id: ws.id,
+          name: ws.name,
+          path: ws.path,
+          agent: ws.agent as AgentType,
+          cloned: ws.cloned ?? false,
+          expanded: ws.sessions?.length > 0,
+          sessions: (ws.sessions ?? []).map((s: any): SessionState => ({
+            id: s.id,
+            workspaceId: ws.id,
+            name: s.name,
+            agent: s.agent as AgentType,
+            directory: s.directory,
+            worktreePath: s.worktreePath ?? '',
+            branch: s.branch ?? '',
+            status: 'stopped',
+          })),
+        }))
+        setWorkspaces(mapped)
       })
       .catch(() => {})
-  }, [setSessions])
+  }, [setWorkspaces])
 
-  // Subscribe to status events for all sessions
+  // Subscribe to status events
   useEffect(() => {
-    sessions.forEach((s) => {
+    allSessions.forEach((s) => {
       window.runtime?.EventsOn(`session:status:${s.id}`, (status: unknown) => {
         updateStatus(s.id, status as any)
       })
     })
     return () => {
-      sessions.forEach((s) => {
+      allSessions.forEach((s) => {
         window.runtime?.EventsOff(`session:status:${s.id}`)
       })
     }
-  }, [sessions.length, updateStatus])
+  }, [allSessions.length, updateStatus])
+
+  const handleNewSession = useCallback((workspaceId: string) => {
+    const ws = workspaces.find((w) => w.id === workspaceId)
+    if (ws) setNewSessionWorkspace(ws)
+  }, [workspaces])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0f1117]">
-      {/* Sidebar */}
       <Sidebar
-        onNewSession={() => setShowNewSession(true)}
+        onAddRepository={() => setShowAddRepo(true)}
         onSettings={() => setShowSettings(true)}
+        onNewSession={handleNewSession}
       />
 
-      {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         {activeSession ? (
           <>
@@ -70,22 +103,27 @@ function App() {
               <p className="text-sm">AI Manager — multi-session terminal for Claude Code &amp; Codex</p>
               <button
                 className="mt-6 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
-                onClick={() => setShowNewSession(true)}
+                onClick={() => setShowAddRepo(true)}
               >
-                + New Session
+                + Add repository
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {showNewSession && (
-        <NewSessionDialog onClose={() => setShowNewSession(false)} />
+      {showAddRepo && <AddRepositoryDialog onClose={() => setShowAddRepo(false)} />}
+
+      {newSessionWorkspace && (
+        <NewWorktreeSessionDialog
+          workspaceId={newSessionWorkspace.id}
+          workspacePath={newSessionWorkspace.path}
+          workspaceAgent={newSessionWorkspace.agent}
+          onClose={() => setNewSessionWorkspace(null)}
+        />
       )}
 
-      {showSettings && (
-        <SettingsDialog onClose={() => setShowSettings(false)} />
-      )}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   )
 }
