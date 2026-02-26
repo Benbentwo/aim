@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "aim",
+  "outputfilename": "aim",
+  "frontend:install": "npm install --legacy-peer-deps",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "wailsjsdir": "./frontend/wailsjs",
+  "author": {
+    "name": "Benjamin Smith",
+    "email": "ben.smith.developer@gmail.com"
+  },
+  "info": {
+    "productName": "aim",
+    "productVersion": "0.1.0",
+    "copyright": "(c) 2025 Benjamin Smith",
+    "comments": "AI Manager — multi-session terminal for Claude Code and Codex CLI"
+  }
+}
