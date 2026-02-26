@@ -37,6 +37,15 @@ export default function Terminal({ sessionId }: TerminalProps) {
     const term = new XTerm({
       cursorBlink: true,
       fontFamily: 'MesloLGS NF, Menlo, Consolas, "Courier New", monospace',
+      // Handle OSC 8 hyperlinks (e.g. "PR #4" links from Claude Code)
+      // by opening them in the system default browser via Wails
+      linkHandler: {
+        activate(_event: MouseEvent, text: string) {
+          import('../../wailsjs/runtime/runtime')
+            .then(({ BrowserOpenURL }) => BrowserOpenURL(text))
+            .catch(() => { window.open(text, '_blank') })
+        },
+      },
       fontSize: 13,
       lineHeight: 1.2,
       theme: {
