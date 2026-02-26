@@ -1,4 +1,5 @@
-import { useAimStore, WorkspaceState, SessionState, SessionStatus } from '../stores/sessions'
+import { useCallback } from 'react'
+import { useAimStore, WorkspaceState, SessionState, SessionStatus, AgentType } from '../stores/sessions'
 
 interface SidebarProps {
   onAddRepository: () => void
@@ -14,7 +15,7 @@ const statusColors: Record<SessionStatus, string> = {
   errored:  'bg-red-500',
 }
 
-const agentBadge: Record<string, string> = {
+const agentBadge: Record<AgentType, string> = {
   claude: 'bg-indigo-800 text-indigo-200',
   codex:  'bg-green-800 text-green-200',
   shell:  'bg-slate-700 text-slate-300',
@@ -49,22 +50,23 @@ function SessionRow({ session, isActive, onClick }: {
   )
 }
 
-function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, onNewSession }: {
+function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, onNewSession, onToggle }: {
   workspace: WorkspaceState
   isActiveWs: boolean
   activeSessionId: string | null
   onSessionClick: (sessionId: string, workspaceId: string) => void
   onNewSession: (workspaceId: string) => void
+  onToggle: (id: string) => void
 }) {
-  const { toggleWorkspace } = useAimStore()
   const anyThinking = workspace.sessions.some((s) => s.status === 'thinking' || s.status === 'waiting')
 
   return (
     <div>
       {/* Workspace header row */}
       <button
-        onClick={() => toggleWorkspace(workspace.id)}
-        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors group ${
+        aria-expanded={workspace.expanded}
+        onClick={() => onToggle(workspace.id)}
+        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
           isActiveWs && !workspace.expanded
             ? 'bg-slate-700 text-white'
             : 'text-slate-300 hover:bg-slate-800'
@@ -78,7 +80,7 @@ function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, 
         {anyThinking && (
           <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
         )}
-        <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold uppercase ${agentBadge[workspace.agent] ?? agentBadge.shell}`}>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold uppercase ${agentBadge[workspace.agent]}`}>
           {workspace.agent}
         </span>
       </button>
@@ -109,11 +111,11 @@ function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, 
 }
 
 export default function Sidebar({ onAddRepository, onSettings, onNewSession }: SidebarProps) {
-  const { workspaces, activeSessionId, activeWorkspaceId, setActiveSession } = useAimStore()
+  const { workspaces, activeSessionId, activeWorkspaceId, setActiveSession, toggleWorkspace } = useAimStore()
 
-  const handleSessionClick = (sessionId: string, workspaceId: string) => {
+  const handleSessionClick = useCallback((sessionId: string, workspaceId: string) => {
     setActiveSession(sessionId, workspaceId)
-  }
+  }, [setActiveSession])
 
   return (
     <div className="flex flex-col w-60 shrink-0 bg-[#131620] border-r border-slate-800 pt-10 no-select">
@@ -126,6 +128,7 @@ export default function Sidebar({ onAddRepository, onSettings, onNewSession }: S
             activeSessionId={activeSessionId}
             onSessionClick={handleSessionClick}
             onNewSession={onNewSession}
+            onToggle={toggleWorkspace}
           />
         ))}
         {workspaces.length === 0 && (
@@ -150,6 +153,7 @@ export default function Sidebar({ onAddRepository, onSettings, onNewSession }: S
         </button>
         <button
           onClick={onSettings}
+          title="Settings"
           className="w-full flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg text-sm transition-colors"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
