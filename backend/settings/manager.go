@@ -12,6 +12,7 @@ type Settings struct {
 	DefaultWorktree bool   `json:"defaultWorktree"` // true = create worktree by default
 	Theme           string `json:"theme"`           // "dark", "light"
 	ShellPath       string `json:"shellPath"`       // e.g. /bin/zsh
+	ReposBaseDir    string `json:"reposBaseDir"`    // base dir for cloned repos
 }
 
 type Manager struct {
@@ -58,10 +59,12 @@ func (m *Manager) defaults() Settings {
 	if shell == "" {
 		shell = "/bin/zsh"
 	}
+	home, _ := os.UserHomeDir()
 	return Settings{
 		DefaultAgent:    "claude",
 		DefaultWorktree: true,
 		Theme:           "dark",
 		ShellPath:       shell,
+		ReposBaseDir:    filepath.Join(home, ".aim", "repos"),
 	}
 }
