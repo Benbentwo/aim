@@ -27,6 +27,7 @@ type SessionConfig struct {
 	UseWorktree  bool   `json:"useWorktree"`
 	WorktreePath string `json:"worktreePath"` // filled in by backend if useWorktree
 	Branch       string `json:"branch"`       // git branch for worktree
+	WorkspaceID  string `json:"workspaceId"`
 }
 
 // Session is the runtime session record.
@@ -39,6 +40,7 @@ type Session struct {
 // SessionState is what gets persisted and returned to the frontend.
 type SessionState struct {
 	ID           string `json:"id"`
+	WorkspaceID  string `json:"workspaceId"`
 	Name         string `json:"name"`
 	Agent        string `json:"agent"`
 	Directory    string `json:"directory"`
@@ -88,6 +90,7 @@ func (m *Manager) loadPersistedSessions() {
 			ID: ss.ID,
 			Config: SessionConfig{
 				Name:         ss.Name,
+				WorkspaceID:  ss.WorkspaceID,
 				Agent:        ss.Agent,
 				Directory:    ss.Directory,
 				UseWorktree:  ss.WorktreePath != "",
@@ -204,6 +207,7 @@ func (m *Manager) ListSessions() []SessionState {
 	for id, s := range m.sessions {
 		result = append(result, SessionState{
 			ID:           id,
+			WorkspaceID:  s.Config.WorkspaceID,
 			Name:         s.Config.Name,
 			Agent:        s.Config.Agent,
 			Directory:    s.Config.Directory,
@@ -269,6 +273,7 @@ func (m *Manager) persist() {
 	for id, s := range m.sessions {
 		sessions = append(sessions, SessionState{
 			ID:           id,
+			WorkspaceID:  s.Config.WorkspaceID,
 			Name:         s.Config.Name,
 			Agent:        s.Config.Agent,
 			Directory:    s.Config.Directory,
