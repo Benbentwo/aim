@@ -1,4 +1,4 @@
-import { SessionState, SessionStatus, useSessionStore } from '../stores/sessions'
+import { SessionState, SessionStatus, useAimStore } from '../stores/sessions'
 
 interface SessionHeaderProps {
   session: SessionState
@@ -27,7 +27,7 @@ const agentColors: Record<string, string> = {
 }
 
 export default function SessionHeader({ session }: SessionHeaderProps) {
-  const { updateStatus, removeSession } = useSessionStore()
+  const { updateStatus, removeSession } = useAimStore()
   const workDir = session.worktreePath || session.directory
   const isWorktree = Boolean(session.worktreePath)
   const isStopped = session.status === 'stopped' || session.status === 'errored'
