@@ -5,6 +5,16 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 
+/** Decode a base64 string to a Uint8Array for correct UTF-8 handling in xterm.js */
+function b64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
 declare const window: Window & {
   runtime?: {
     EventsOn: (event: string, callback: (...args: unknown[]) => void) => void
@@ -55,7 +65,14 @@ export default function Terminal({ sessionId }: TerminalProps) {
 
     const fit = new FitAddon()
     const webgl = new WebglAddon()
-    const webLinks = new WebLinksAddon()
+    // Open links in the system default browser via Wails runtime
+    const webLinks = new WebLinksAddon((event, uri) => {
+      if (event.metaKey || event.ctrlKey) {
+        import('../../wailsjs/runtime/runtime')
+          .then(({ BrowserOpenURL }) => BrowserOpenURL(uri))
+          .catch(() => { window.open(uri, '_blank') })
+      }
+    })
 
     term.loadAddon(fit)
     term.loadAddon(webLinks)
@@ -72,21 +89,29 @@ export default function Terminal({ sessionId }: TerminalProps) {
     termRef.current = term
     fitRef.current = fit
 
-    // Load scrollback from backend
+    // Send initial size to backend so the PTY columns/rows are correct from the start
+    const { cols, rows } = term
+    import('../../wailsjs/go/session/Manager')
+      .then(({ ResizeSession }) => ResizeSession(sessionId, cols, rows))
+      .catch(() => {})
+
+    // Load scrollback from backend (returned as base64 to preserve raw PTY bytes)
     import('../../wailsjs/go/session/Manager')
       .then(({ GetSessionLog }) => GetSessionLog(sessionId))
       .then((log: string) => {
         if (log) {
-          term.write(log)
+          term.write(b64ToBytes(log))
         }
       })
       .catch(() => {})
 
     // Subscribe to PTY output events
+    // Must decode base64 → Uint8Array (not a JS string) so xterm.js handles
+    // multi-byte UTF-8 sequences correctly instead of treating each byte as a
+    // separate Unicode codepoint (which produces mojibake like â³, Â·, etc.)
     const onData = (encoded: unknown) => {
       if (typeof encoded === 'string') {
-        const bytes = atob(encoded)
-        term.write(bytes)
+        term.write(b64ToBytes(encoded))
       }
     }
 

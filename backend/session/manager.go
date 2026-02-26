@@ -2,7 +2,9 @@ package session
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -219,9 +221,17 @@ func (m *Manager) ListSessions() []SessionState {
 	return result
 }
 
-// GetSessionLog returns the scrollback log for a session.
+// GetSessionLog returns the scrollback log for a session as base64.
+// Base64 encoding ensures raw PTY bytes survive JSON serialization without corruption.
 func (m *Manager) GetSessionLog(id string) (string, error) {
-	return m.persister.loadScrollback(id)
+	data, err := os.ReadFile(m.persister.scrollbackFile(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading scrollback: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 // updateStatus updates session status and emits event.
