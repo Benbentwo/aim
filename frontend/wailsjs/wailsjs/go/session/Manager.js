@@ -18,6 +18,10 @@ export function ListSessions() {
   return window['go']['session']['Manager']['ListSessions']();
 }
 
+export function RenameSessionBranch(arg1, arg2) {
+  return window['go']['session']['Manager']['RenameSessionBranch'](arg1, arg2);
+}
+
 export function ResizeSession(arg1, arg2, arg3) {
   return window['go']['session']['Manager']['ResizeSession'](arg1, arg2, arg3);
 }

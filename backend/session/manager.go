@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -219,6 +220,34 @@ func (m *Manager) ListSessions() []SessionState {
 		})
 	}
 	return result
+}
+
+// RenameSessionBranch renames the git branch of a worktree session.
+// Called after the user types their first message so the branch gets a meaningful name.
+func (m *Manager) RenameSessionBranch(id string, newBranch string) error {
+	m.mu.RLock()
+	s, ok := m.sessions[id]
+	m.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	if s.Config.WorktreePath == "" {
+		return nil // plain directory session, nothing to rename
+	}
+
+	cmd := exec.Command("git", "-C", s.Config.WorktreePath, "branch", "-m", newBranch)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git branch -m: %s", strings.TrimSpace(string(out)))
+	}
+
+	m.mu.Lock()
+	s.Config.Branch = newBranch
+	s.Config.Name = newBranch
+	m.mu.Unlock()
+	m.persist()
+
+	runtime.EventsEmit(m.ctx, fmt.Sprintf("session:branch:%s", id), newBranch)
+	return nil
 }
 
 // GetSessionLog returns the scrollback log for a session as base64.

@@ -8,6 +8,7 @@ export interface SessionConfig {
   useWorktree: boolean;
   worktreePath: string;
   branch: string;
+  workspaceId: string;
 }
 
 export interface SessionState {
@@ -27,3 +28,4 @@ export function CloseSession(id: string): Promise<void>;
 export function ListSessions(): Promise<SessionState[]>;
 export function GetSessionLog(id: string): Promise<string>;
 export function ResumeSession(id: string): Promise<void>;
+export function RenameSessionBranch(id: string, newBranch: string): Promise<void>;

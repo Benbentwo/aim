@@ -29,3 +29,7 @@ export function GetSessionLog(arg1) {
 export function ResumeSession(arg1) {
     return window['go']['session']['Manager']['ResumeSession'](arg1);
 }
+
+export function RenameSessionBranch(arg1, arg2) {
+    return window['go']['session']['Manager']['RenameSessionBranch'](arg1, arg2);
+}

@@ -4,7 +4,6 @@ import Sidebar from './components/Sidebar'
 import Terminal from './components/Terminal'
 import SessionHeader from './components/SessionHeader'
 import AddRepositoryDialog from './components/AddRepositoryDialog'
-import NewWorktreeSessionDialog from './components/NewWorktreeSessionDialog'
 import SettingsDialog from './components/Settings'
 import { useAimStore, AgentType, SessionState, WorkspaceState } from './stores/sessions'
 
@@ -15,17 +14,32 @@ declare const window: Window & {
   }
 }
 
+/** Convert user's first prompt into a git branch name: aim/{slug} */
+function slugifyToBranch(text: string): string {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 6)
+    .join('-')
+    .replace(/-+/g, '-')
+    .replace(/-$/, '')
+    .slice(0, 50)
+  return `aim/${slug || 'session'}`
+}
+
 function App() {
   const [showAddRepo, setShowAddRepo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [newSessionWorkspace, setNewSessionWorkspace] = useState<WorkspaceState | null>(null)
 
   const {
     workspaces,
     activeSessionId,
-    activeWorkspaceId,
     setWorkspaces,
     updateStatus,
+    updateBranch,
+    addSession,
   } = useAimStore()
 
   // Flatten all sessions for lookup
@@ -75,10 +89,69 @@ function App() {
     }
   }, [allSessions.length, updateStatus])
 
-  const handleNewSession = useCallback((workspaceId: string) => {
+  // [+ New session] — instantly creates a worktree with a temp branch, no dialog
+  const handleNewSession = useCallback(async (workspaceId: string) => {
     const ws = workspaces.find((w) => w.id === workspaceId)
-    if (ws) setNewSessionWorkspace(ws)
-  }, [workspaces])
+    if (!ws) return
+
+    try {
+      const { IsGitRepo, CreateWorktree } = await import('../wailsjs/go/worktree/Manager')
+      const { CreateSession } = await import('../wailsjs/go/session/Manager')
+
+      const isGit = await IsGitRepo(ws.path)
+      // Random 6-char hex suffix for the temp branch
+      const tmpSuffix = Math.random().toString(16).slice(2, 8)
+      const tempBranch = `aim/tmp-${tmpSuffix}`
+
+      let worktreePath = ''
+      let branch = ''
+      let directory = ws.path
+
+      if (isGit) {
+        worktreePath = await CreateWorktree(ws.path, tempBranch)
+        branch = tempBranch
+        directory = worktreePath
+      }
+
+      const id = await CreateSession({
+        name: tempBranch,
+        agent: ws.agent,
+        directory,
+        useWorktree: isGit,
+        worktreePath,
+        branch,
+        workspaceId,
+      })
+
+      addSession({
+        id,
+        workspaceId,
+        name: tempBranch,
+        agent: ws.agent,
+        directory,
+        worktreePath,
+        branch,
+        status: 'idle',
+      })
+    } catch (err) {
+      console.error('Failed to create session:', err)
+    }
+  }, [workspaces, addSession])
+
+  // After the user's first message, rename the temp branch to a slug of that message
+  const handleFirstMessage = useCallback(async (sessionId: string, text: string) => {
+    const session = allSessions.find((s) => s.id === sessionId)
+    if (!session?.branch.startsWith('aim/tmp-')) return
+
+    const newBranch = slugifyToBranch(text)
+    try {
+      const { RenameSessionBranch } = await import('../wailsjs/go/session/Manager')
+      await RenameSessionBranch(sessionId, newBranch)
+      updateBranch(sessionId, newBranch)
+    } catch (err) {
+      console.error('Failed to rename branch:', err)
+    }
+  }, [allSessions, updateBranch])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0f1117]">
@@ -93,7 +166,10 @@ function App() {
           <>
             <SessionHeader session={activeSession} />
             <div className="flex-1 min-h-0">
-              <Terminal sessionId={activeSession.id} />
+              <Terminal
+                sessionId={activeSession.id}
+                onFirstMessage={(text) => handleFirstMessage(activeSession.id, text)}
+              />
             </div>
           </>
         ) : (
@@ -113,16 +189,6 @@ function App() {
       </div>
 
       {showAddRepo && <AddRepositoryDialog onClose={() => setShowAddRepo(false)} />}
-
-      {newSessionWorkspace && (
-        <NewWorktreeSessionDialog
-          workspaceId={newSessionWorkspace.id}
-          workspacePath={newSessionWorkspace.path}
-          workspaceAgent={newSessionWorkspace.agent}
-          onClose={() => setNewSessionWorkspace(null)}
-        />
-      )}
-
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   )

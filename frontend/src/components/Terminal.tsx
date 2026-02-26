@@ -24,12 +24,17 @@ declare const window: Window & {
 
 interface TerminalProps {
   sessionId: string
+  /** Called with the first line the user types and submits (Enter). Used to rename the branch. */
+  onFirstMessage?: (text: string) => void
 }
 
-export default function Terminal({ sessionId }: TerminalProps) {
+export default function Terminal({ sessionId, onFirstMessage }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  // Track first-message for branch auto-rename
+  const firstMsgBuffer = useRef('')
+  const firstMsgFired = useRef(false)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -126,8 +131,24 @@ export default function Terminal({ sessionId }: TerminalProps) {
 
     window.runtime?.EventsOn(`session:data:${sessionId}`, onData)
 
-    // Forward keystrokes to backend
+    // Forward keystrokes to backend; buffer first line for branch auto-rename
     const disposeInput = term.onData((data) => {
+      if (onFirstMessage && !firstMsgFired.current) {
+        if (data === '\r' || data === '\n') {
+          // Enter pressed — fire if there's content
+          const text = firstMsgBuffer.current.trim()
+          if (text) {
+            firstMsgFired.current = true
+            onFirstMessage(text)
+          }
+        } else if (data === '\x7f') {
+          // Backspace
+          firstMsgBuffer.current = firstMsgBuffer.current.slice(0, -1)
+        } else if (data.length === 1 && data.charCodeAt(0) >= 32) {
+          // Printable character
+          firstMsgBuffer.current += data
+        }
+      }
       import('../../wailsjs/go/session/Manager')
         .then(({ WriteToSession }) => WriteToSession(sessionId, data))
         .catch(() => {})

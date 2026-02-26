@@ -39,6 +39,7 @@ interface AimStore {
   addSession: (session: SessionState) => void
   removeSession: (id: string) => void
   updateStatus: (id: string, status: SessionStatus) => void
+  updateBranch: (id: string, branch: string) => void
   setActiveSession: (sessionId: string | null, workspaceId: string | null) => void
 }
 
@@ -98,6 +99,16 @@ export const useAimStore = create<AimStore>((set) => ({
         ...w,
         sessions: w.sessions.map((s) =>
           s.id === id ? { ...s, status } : s
+        ),
+      })),
+    })),
+
+  updateBranch: (id, branch) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.map((s) =>
+          s.id === id ? { ...s, branch, name: branch } : s
         ),
       })),
     })),

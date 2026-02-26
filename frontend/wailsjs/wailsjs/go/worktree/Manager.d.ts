@@ -3,11 +3,17 @@
 import {worktree} from '../models';
 import {context} from '../models';
 
+export function CloneDestPath(arg1:string,arg2:string):Promise<string>;
+
+export function CloneRepo(arg1:string,arg2:string):Promise<void>;
+
 export function CreateWorktree(arg1:string,arg2:string):Promise<string>;
 
 export function IsGitRepo(arg1:string):Promise<boolean>;
 
 export function ListWorktrees(arg1:string):Promise<Array<worktree.WorktreeInfo>>;
+
+export function ParseRepoURL(arg1:string):Promise<worktree.RepoURL>;
 
 export function RemoveWorktree(arg1:string,arg2:string):Promise<void>;
 
