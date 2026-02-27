@@ -8,11 +8,12 @@ import (
 )
 
 type Settings struct {
-	DefaultAgent    string `json:"defaultAgent"`    // "claude", "codex", "shell"
-	DefaultWorktree bool   `json:"defaultWorktree"` // true = create worktree by default
-	Theme           string `json:"theme"`           // "dark", "light"
-	ShellPath       string `json:"shellPath"`       // e.g. /bin/zsh
-	ReposBaseDir    string `json:"reposBaseDir"`    // base dir for cloned repos
+	DefaultAgent                string `json:"defaultAgent"`                // "claude", "codex", "shell"
+	DefaultWorktree             bool   `json:"defaultWorktree"`             // true = create worktree by default
+	Theme                       string `json:"theme"`                       // "dark", "light"
+	ShellPath                   string `json:"shellPath"`                   // e.g. /bin/zsh
+	ReposBaseDir                string `json:"reposBaseDir"`                // base dir for cloned repos
+	ArchiveWorktreeCleanupDays  int    `json:"archiveWorktreeCleanupDays"`  // days before stale worktrees are removed
 }
 
 type Manager struct {
@@ -61,10 +62,11 @@ func (m *Manager) defaults() Settings {
 	}
 	home, _ := os.UserHomeDir()
 	return Settings{
-		DefaultAgent:    "claude",
-		DefaultWorktree: true,
-		Theme:           "dark",
-		ShellPath:       shell,
-		ReposBaseDir:    filepath.Join(home, ".aim", "repos"),
+		DefaultAgent:               "claude",
+		DefaultWorktree:            true,
+		Theme:                      "dark",
+		ShellPath:                  shell,
+		ReposBaseDir:               filepath.Join(home, ".aim", "repos"),
+		ArchiveWorktreeCleanupDays: 7,
 	}
 }
