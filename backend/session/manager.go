@@ -83,7 +83,26 @@ func NewManager() *Manager {
 func (m *Manager) SetContext(ctx context.Context) {
 	m.ctx = ctx
 	m.loadPersistedSessions()
-	m.cleanupStaleWorktrees()
+	// Read cleanup setting and pass to cleanup function
+	cleanupDays := m.loadCleanupDays()
+	m.cleanupStaleWorktrees(cleanupDays)
+}
+
+// loadCleanupDays reads the archiveWorktreeCleanupDays setting from disk.
+// Returns 7 (the default) if the file is missing, zero, or unparseable.
+func (m *Manager) loadCleanupDays() int {
+	confDir, _ := os.UserConfigDir()
+	data, err := os.ReadFile(filepath.Join(confDir, "aim", "settings.json"))
+	if err != nil {
+		return 7 // default: clean up after 7 days
+	}
+	var s struct {
+		ArchiveWorktreeCleanupDays int `json:"archiveWorktreeCleanupDays"`
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return 7
+	}
+	return s.ArchiveWorktreeCleanupDays // caller treats 0 as disabled
 }
 
 func (m *Manager) loadPersistedSessions() {
@@ -261,14 +280,26 @@ func (m *Manager) UnarchiveSession(id string) error {
 // The worktree is NOT removed — the user manages the branch via git.
 func (m *Manager) DeleteArchivedSession(id string) error {
 	m.mu.Lock()
-	_, ok := m.sessions[id]
-	if ok {
-		delete(m.sessions, id)
-		delete(m.statuses, id)
+	s, ok := m.sessions[id]
+	if !ok {
+		m.mu.Unlock()
+		return fmt.Errorf("session %s not found", id)
+	}
+	if !s.Archived {
+		m.mu.Unlock()
+		return fmt.Errorf("session %s is not archived", id)
+	}
+	delete(m.sessions, id)
+	delete(m.statuses, id)
+	// Safety: remove from ptySessions if somehow present (should not happen for archived sessions)
+	ps, hasPTY := m.ptySessions[id]
+	if hasPTY {
+		delete(m.ptySessions, id)
 	}
 	m.mu.Unlock()
-	if !ok {
-		return fmt.Errorf("session %s not found", id)
+
+	if hasPTY {
+		_ = ps.kill()
 	}
 	dir := m.persister.sessionDir(id)
 	_ = os.RemoveAll(dir)
@@ -408,24 +439,20 @@ func (m *Manager) persist() {
 
 // cleanupStaleWorktrees removes worktrees for sessions archived longer than
 // the configured cleanup period. Called on startup after sessions are loaded.
-func (m *Manager) cleanupStaleWorktrees() {
-	confDir, _ := os.UserConfigDir()
-	data, _ := os.ReadFile(filepath.Join(confDir, "aim", "settings.json"))
-	var settingsData struct {
-		ArchiveWorktreeCleanupDays int `json:"archiveWorktreeCleanupDays"`
-	}
-	if err := json.Unmarshal(data, &settingsData); err != nil {
-		return
-	}
-	cleanupDays := settingsData.ArchiveWorktreeCleanupDays
+func (m *Manager) cleanupStaleWorktrees(cleanupDays int) {
 	if cleanupDays == 0 {
-		return
+		return // 0 = disabled
 	}
-
 	cutoff := time.Now().AddDate(0, 0, -cleanupDays)
 
-	m.mu.Lock()
-	var changed bool
+	// Collect stale candidates while holding the lock (no I/O inside lock)
+	type candidate struct {
+		id           string
+		repoPath     string
+		worktreePath string
+	}
+	m.mu.RLock()
+	var candidates []candidate
 	for _, s := range m.sessions {
 		if !s.Archived || s.ArchivedAt == nil || s.ArchivedAt.After(cutoff) {
 			continue
@@ -433,17 +460,40 @@ func (m *Manager) cleanupStaleWorktrees() {
 		if s.Config.WorktreePath == "" || s.Config.RepoPath == "" {
 			continue
 		}
-		cmd := exec.Command("git", "-C", s.Config.RepoPath, "worktree", "remove", "--force", s.Config.WorktreePath)
-		if err := cmd.Run(); err == nil {
-			s.Config.WorktreePath = ""
-			changed = true
+		candidates = append(candidates, candidate{
+			id:           s.ID,
+			repoPath:     s.Config.RepoPath,
+			worktreePath: s.Config.WorktreePath,
+		})
+	}
+	m.mu.RUnlock()
+
+	if len(candidates) == 0 {
+		return
+	}
+
+	// Run git commands outside the lock
+	var cleaned []string
+	for _, c := range candidates {
+		cmd := exec.Command("git", "-C", c.repoPath, "worktree", "remove", "--force", c.worktreePath)
+		if cmd.Run() == nil {
+			cleaned = append(cleaned, c.id)
+		}
+	}
+
+	if len(cleaned) == 0 {
+		return
+	}
+
+	// Update map entries with lock
+	m.mu.Lock()
+	for _, id := range cleaned {
+		if s, ok := m.sessions[id]; ok {
+			s.Config.WorktreePath = "" // worktree removed; session metadata preserved
 		}
 	}
 	m.mu.Unlock()
-
-	if changed {
-		m.persist()
-	}
+	m.persist()
 }
 
 // Shutdown kills all active PTY sessions.
