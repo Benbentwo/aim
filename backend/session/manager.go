@@ -238,6 +238,42 @@ func (m *Manager) ArchiveSession(id string) error {
 	return nil
 }
 
+// UnarchiveSession clears the archived flag so the session reappears in the sidebar.
+// It does NOT re-spawn the PTY — the frontend shows it as stopped.
+func (m *Manager) UnarchiveSession(id string) error {
+	m.mu.Lock()
+	s, ok := m.sessions[id]
+	if ok {
+		s.Archived = false
+		s.ArchivedAt = nil
+	}
+	m.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	m.persist()
+	return nil
+}
+
+// DeleteArchivedSession removes an archived session's metadata and scrollback log.
+// The worktree is NOT removed — the user manages the branch via git.
+func (m *Manager) DeleteArchivedSession(id string) error {
+	m.mu.Lock()
+	_, ok := m.sessions[id]
+	if ok {
+		delete(m.sessions, id)
+		delete(m.statuses, id)
+	}
+	m.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	dir := m.persister.sessionDir(id)
+	_ = os.RemoveAll(dir)
+	m.persist()
+	return nil
+}
+
 // ListSessions returns all known sessions with their current status.
 func (m *Manager) ListSessions() []SessionState {
 	m.mu.RLock()
