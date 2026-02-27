@@ -3,9 +3,11 @@ package session
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -80,8 +82,8 @@ func NewManager() *Manager {
 
 func (m *Manager) SetContext(ctx context.Context) {
 	m.ctx = ctx
-	// Load persisted sessions on startup
 	m.loadPersistedSessions()
+	m.cleanupStaleWorktrees()
 }
 
 func (m *Manager) loadPersistedSessions() {
@@ -402,6 +404,46 @@ func (m *Manager) persist() {
 	}
 	m.mu.RUnlock()
 	_ = m.persister.saveSessions(sessions)
+}
+
+// cleanupStaleWorktrees removes worktrees for sessions archived longer than
+// the configured cleanup period. Called on startup after sessions are loaded.
+func (m *Manager) cleanupStaleWorktrees() {
+	confDir, _ := os.UserConfigDir()
+	data, _ := os.ReadFile(filepath.Join(confDir, "aim", "settings.json"))
+	var settingsData struct {
+		ArchiveWorktreeCleanupDays int `json:"archiveWorktreeCleanupDays"`
+	}
+	if err := json.Unmarshal(data, &settingsData); err != nil {
+		return
+	}
+	cleanupDays := settingsData.ArchiveWorktreeCleanupDays
+	if cleanupDays == 0 {
+		return
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -cleanupDays)
+
+	m.mu.Lock()
+	var changed bool
+	for _, s := range m.sessions {
+		if !s.Archived || s.ArchivedAt == nil || s.ArchivedAt.After(cutoff) {
+			continue
+		}
+		if s.Config.WorktreePath == "" || s.Config.RepoPath == "" {
+			continue
+		}
+		cmd := exec.Command("git", "-C", s.Config.RepoPath, "worktree", "remove", "--force", s.Config.WorktreePath)
+		if err := cmd.Run(); err == nil {
+			s.Config.WorktreePath = ""
+			changed = true
+		}
+	}
+	m.mu.Unlock()
+
+	if changed {
+		m.persist()
+	}
 }
 
 // Shutdown kills all active PTY sessions.
