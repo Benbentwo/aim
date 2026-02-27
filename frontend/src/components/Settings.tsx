@@ -5,6 +5,8 @@ interface SettingsData {
   defaultWorktree: boolean
   theme: string
   shellPath: string
+  reposBaseDir: string
+  archiveWorktreeCleanupDays: number
 }
 
 interface SettingsProps {
@@ -23,6 +25,8 @@ export default function Settings({ onClose }: SettingsProps) {
     defaultWorktree: true,
     theme: 'dark',
     shellPath: '/bin/zsh',
+    reposBaseDir: '',
+    archiveWorktreeCleanupDays: 7,
   })
   const [saved, setSaved] = useState(false)
 
@@ -103,6 +107,23 @@ export default function Settings({ onClose }: SettingsProps) {
             placeholder="/bin/zsh"
             className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-indigo-500"
           />
+        </div>
+
+        {/* Archive cleanup */}
+        <div className="mb-4">
+          <label className="block text-xs text-slate-400 mb-2 uppercase tracking-wide">
+            Clean up worktrees after (days)
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              value={settings.archiveWorktreeCleanupDays}
+              onChange={(e) => setSettings((s) => ({ ...s, archiveWorktreeCleanupDays: parseInt(e.target.value) || 0 }))}
+              className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+            />
+            <span className="text-xs text-slate-500">0 = never</span>
+          </div>
         </div>
 
         {/* Theme */}
