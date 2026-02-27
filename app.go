@@ -6,23 +6,28 @@ import (
 	"github.com/Benbentwo/aim/backend/session"
 	"github.com/Benbentwo/aim/backend/settings"
 	"github.com/Benbentwo/aim/backend/worktree"
+	"github.com/Benbentwo/aim/backend/workspace"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App is the main application struct wired to the Wails runtime.
 type App struct {
-	ctx            context.Context
-	SessionManager  *session.Manager
-	WorktreeManager *worktree.Manager
-	SettingsManager *settings.Manager
+	ctx              context.Context
+	SessionManager   *session.Manager
+	WorktreeManager  *worktree.Manager
+	SettingsManager  *settings.Manager
+	WorkspaceManager *workspace.Manager
 }
 
 // NewApp creates and returns a new App instance.
 func NewApp() *App {
+	sessMgr := session.NewManager()
+	wtrMgr := worktree.NewManager()
 	return &App{
-		SessionManager:  session.NewManager(),
-		WorktreeManager: worktree.NewManager(),
-		SettingsManager: settings.NewManager(),
+		SessionManager:   sessMgr,
+		WorktreeManager:  wtrMgr,
+		SettingsManager:  settings.NewManager(),
+		WorkspaceManager: workspace.NewManager(sessMgr, wtrMgr),
 	}
 }
 
@@ -32,6 +37,7 @@ func (a *App) startup(ctx context.Context) {
 	a.SessionManager.SetContext(ctx)
 	a.WorktreeManager.SetContext(ctx)
 	a.SettingsManager.SetContext(ctx)
+	a.WorkspaceManager.SetContext(ctx)
 }
 
 // shutdown is called when the application terminates.

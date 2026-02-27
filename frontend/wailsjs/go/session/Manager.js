@@ -29,3 +29,19 @@ export function GetSessionLog(arg1) {
 export function ResumeSession(arg1) {
     return window['go']['session']['Manager']['ResumeSession'](arg1);
 }
+
+export function RenameSessionBranch(arg1, arg2) {
+    return window['go']['session']['Manager']['RenameSessionBranch'](arg1, arg2);
+}
+
+export function ArchiveSession(arg1) {
+    return window['go']['session']['Manager']['ArchiveSession'](arg1);
+}
+
+export function UnarchiveSession(arg1) {
+    return window['go']['session']['Manager']['UnarchiveSession'](arg1);
+}
+
+export function DeleteArchivedSession(arg1) {
+    return window['go']['session']['Manager']['DeleteArchivedSession'](arg1);
+}

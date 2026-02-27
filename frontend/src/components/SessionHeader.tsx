@@ -1,4 +1,4 @@
-import { SessionState, SessionStatus, useSessionStore } from '../stores/sessions'
+import { SessionState, SessionStatus, useAimStore } from '../stores/sessions'
 
 interface SessionHeaderProps {
   session: SessionState
@@ -27,7 +27,7 @@ const agentColors: Record<string, string> = {
 }
 
 export default function SessionHeader({ session }: SessionHeaderProps) {
-  const { updateStatus, removeSession } = useSessionStore()
+  const { updateStatus, archiveSession } = useAimStore()
   const workDir = session.worktreePath || session.directory
   const isWorktree = Boolean(session.worktreePath)
   const isStopped = session.status === 'stopped' || session.status === 'errored'
@@ -42,13 +42,13 @@ export default function SessionHeader({ session }: SessionHeaderProps) {
     }
   }
 
-  const handleClose = async () => {
+  const handleArchive = async () => {
     try {
-      const { CloseSession } = await import('../../wailsjs/go/session/Manager')
-      await CloseSession(session.id)
-      removeSession(session.id)
+      const { ArchiveSession } = await import('../../wailsjs/go/session/Manager')
+      await ArchiveSession(session.id)
+      archiveSession(session.id)
     } catch (err) {
-      console.error('Close failed:', err)
+      console.error('Archive failed:', err)
     }
   }
 
@@ -93,15 +93,16 @@ export default function SessionHeader({ session }: SessionHeaderProps) {
         </button>
       )}
 
-      {/* Close button */}
+      {/* Archive button */}
       <button
-        onClick={handleClose}
+        onClick={handleArchive}
         className="text-slate-600 hover:text-slate-400 transition-colors ml-1"
-        title="Close session"
+        title="Archive session"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="21 8 21 21 3 21 3 8" />
+          <rect x="1" y="3" width="22" height="5" />
+          <line x1="10" y1="12" x2="14" y2="12" />
         </svg>
       </button>
     </div>

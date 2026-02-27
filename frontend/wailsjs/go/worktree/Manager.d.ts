@@ -11,3 +11,12 @@ export function IsGitRepo(path: string): Promise<boolean>;
 export function CreateWorktree(repoPath: string, branch: string): Promise<string>;
 export function ListWorktrees(repoPath: string): Promise<WorktreeInfo[]>;
 export function RemoveWorktree(repoPath: string, worktreePath: string): Promise<void>;
+
+export interface RepoURL {
+  host: string;
+  org: string;
+  repo: string;
+}
+
+export function CloneDestPath(repoURL: string, baseDir: string): Promise<string>;
+export function CloneRepo(repoURL: string, destPath: string): Promise<void>;

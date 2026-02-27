@@ -5,53 +5,148 @@ export type SessionStatus = 'idle' | 'thinking' | 'waiting' | 'stopped' | 'error
 
 export interface SessionState {
   id: string
+  workspaceId: string
   name: string
   agent: AgentType
   directory: string
   worktreePath: string
   branch: string
   status: SessionStatus
+  archived: boolean       // true when in archive
+  archivedAt?: string     // ISO timestamp set when archived
 }
 
-interface SessionStore {
+export interface WorkspaceState {
+  id: string
+  name: string
+  path: string
+  agent: AgentType
+  cloned: boolean
+  expanded: boolean       // UI-only: whether sidebar row is expanded
   sessions: SessionState[]
-  activeSessionId: string | null
+}
 
-  // Actions
-  setSessions: (sessions: SessionState[]) => void
+interface AimStore {
+  workspaces: WorkspaceState[]
+  activeSessionId: string | null
+  activeWorkspaceId: string | null
+
+  // Workspace actions
+  setWorkspaces: (workspaces: WorkspaceState[]) => void
+  addWorkspace: (workspace: WorkspaceState) => void
+  removeWorkspace: (id: string) => void
+  toggleWorkspace: (id: string) => void
+
+  // Session actions
   addSession: (session: SessionState) => void
   removeSession: (id: string) => void
   updateStatus: (id: string, status: SessionStatus) => void
-  setActive: (id: string | null) => void
+  updateBranch: (id: string, branch: string) => void
+  archiveSession: (id: string) => void
+  unarchiveSession: (id: string) => void
+  deleteArchivedSession: (id: string) => void
+  setActiveSession: (sessionId: string | null, workspaceId: string | null) => void
 }
 
-export const useSessionStore = create<SessionStore>((set) => ({
-  sessions: [],
+export const useAimStore = create<AimStore>((set) => ({
+  workspaces: [],
   activeSessionId: null,
+  activeWorkspaceId: null,
 
-  setSessions: (sessions) => set({ sessions }),
+  setWorkspaces: (workspaces) => set({ workspaces }),
+
+  addWorkspace: (workspace) =>
+    set((state) => ({
+      workspaces: [...state.workspaces, workspace],
+    })),
+
+  removeWorkspace: (id) =>
+    set((state) => {
+      const ws = state.workspaces.find((w) => w.id === id)
+      const removedHasActive = ws?.sessions.some((s) => s.id === state.activeSessionId)
+      return {
+        workspaces: state.workspaces.filter((w) => w.id !== id),
+        activeWorkspaceId: state.activeWorkspaceId === id ? null : state.activeWorkspaceId,
+        activeSessionId: removedHasActive ? null : state.activeSessionId,
+      }
+    }),
+
+  toggleWorkspace: (id) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) =>
+        w.id === id ? { ...w, expanded: !w.expanded } : w
+      ),
+    })),
 
   addSession: (session) =>
     set((state) => ({
-      sessions: [...state.sessions, session],
+      workspaces: state.workspaces.map((w) =>
+        w.id === session.workspaceId
+          ? { ...w, sessions: [...w.sessions, session] }
+          : w
+      ),
       activeSessionId: session.id,
+      activeWorkspaceId: session.workspaceId,
     })),
 
   removeSession: (id) =>
     set((state) => ({
-      sessions: state.sessions.filter((s) => s.id !== id),
-      activeSessionId:
-        state.activeSessionId === id
-          ? (state.sessions.find((s) => s.id !== id)?.id ?? null)
-          : state.activeSessionId,
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.filter((s) => s.id !== id),
+      })),
+      activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
     })),
 
   updateStatus: (id, status) =>
     set((state) => ({
-      sessions: state.sessions.map((s) =>
-        s.id === id ? { ...s, status } : s
-      ),
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.map((s) =>
+          s.id === id ? { ...s, status } : s
+        ),
+      })),
     })),
 
-  setActive: (id) => set({ activeSessionId: id }),
+  updateBranch: (id, branch) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.map((s) =>
+          s.id === id ? { ...s, branch, name: branch } : s
+        ),
+      })),
+    })),
+
+  archiveSession: (id) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.map((s) =>
+          s.id === id ? { ...s, archived: true, archivedAt: new Date().toISOString() } : s
+        ),
+      })),
+      activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
+    })),
+
+  unarchiveSession: (id) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.map((s) =>
+          s.id === id ? { ...s, archived: false, archivedAt: undefined } : s
+        ),
+      })),
+    })),
+
+  deleteArchivedSession: (id) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.filter((s) => s.id !== id),
+      })),
+    })),
+
+  setActiveSession: (sessionId, workspaceId) =>
+    set({ activeSessionId: sessionId, activeWorkspaceId: workspaceId }),
 }))

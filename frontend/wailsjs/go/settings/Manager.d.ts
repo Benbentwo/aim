@@ -6,6 +6,8 @@ export interface Settings {
   defaultWorktree: boolean;
   theme: string;
   shellPath: string;
+  reposBaseDir: string;
+  archiveWorktreeCleanupDays: number;
 }
 
 export function GetSettings(): Promise<Settings>;
