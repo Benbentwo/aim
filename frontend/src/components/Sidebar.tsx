@@ -5,6 +5,7 @@ interface SidebarProps {
   onAddRepository: () => void
   onSettings: () => void
   onNewSession: (workspaceId: string) => void
+  onArchivePanel: () => void
 }
 
 const statusColors: Record<SessionStatus, string> = {
@@ -58,7 +59,9 @@ function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, 
   onNewSession: (workspaceId: string) => void
   onToggle: (id: string) => void
 }) {
-  const anyThinking = workspace.sessions.some((s) => s.status === 'thinking' || s.status === 'waiting')
+  const anyThinking = workspace.sessions
+    .filter((s) => !s.archived)
+    .some((s) => s.status === 'thinking' || s.status === 'waiting')
 
   return (
     <div>
@@ -88,7 +91,7 @@ function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, 
       {/* Sessions (visible when expanded) */}
       {workspace.expanded && (
         <div className="mt-0.5 space-y-0.5">
-          {workspace.sessions.map((s) => (
+          {workspace.sessions.filter((s) => !s.archived).map((s) => (
             <SessionRow
               key={s.id}
               session={s}
@@ -110,12 +113,14 @@ function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, 
   )
 }
 
-export default function Sidebar({ onAddRepository, onSettings, onNewSession }: SidebarProps) {
+export default function Sidebar({ onAddRepository, onSettings, onNewSession, onArchivePanel }: SidebarProps) {
   const { workspaces, activeSessionId, activeWorkspaceId, setActiveSession, toggleWorkspace } = useAimStore()
 
   const handleSessionClick = useCallback((sessionId: string, workspaceId: string) => {
     setActiveSession(sessionId, workspaceId)
   }, [setActiveSession])
+
+  const archivedCount = workspaces.flatMap((w) => w.sessions).filter((s) => s.archived).length
 
   return (
     <div className="flex flex-col w-60 shrink-0 bg-[#131620] border-r border-slate-800 pt-10 no-select">
@@ -150,6 +155,22 @@ export default function Sidebar({ onAddRepository, onSettings, onNewSession }: S
             <line x1="8" y1="12" x2="16" y2="12"/>
           </svg>
           <span>Add repository</span>
+        </button>
+        <button
+          onClick={onArchivePanel}
+          className="w-full flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg text-sm transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="21 8 21 21 3 21 3 8" />
+            <rect x="1" y="3" width="22" height="5" />
+            <line x1="10" y1="12" x2="14" y2="12" />
+          </svg>
+          <span className="flex-1">Archive</span>
+          {archivedCount > 0 && (
+            <span className="text-xs bg-slate-700 text-slate-300 rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+              {archivedCount}
+            </span>
+          )}
         </button>
         <button
           onClick={onSettings}

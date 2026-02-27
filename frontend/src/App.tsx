@@ -163,6 +163,7 @@ function App() {
         onAddRepository={() => setShowAddRepo(true)}
         onSettings={() => setShowSettings(true)}
         onNewSession={handleNewSession}
+        onArchivePanel={() => {}}
       />
 
       <div className="flex flex-col flex-1 min-w-0">
