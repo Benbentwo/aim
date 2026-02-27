@@ -211,6 +211,33 @@ func (m *Manager) CloseSession(id string) error {
 	return nil
 }
 
+// ArchiveSession kills the PTY if running, marks the session archived, and persists.
+// The worktree is left on disk.
+func (m *Manager) ArchiveSession(id string) error {
+	m.mu.Lock()
+	ps, hasPTY := m.ptySessions[id]
+	if hasPTY {
+		delete(m.ptySessions, id)
+	}
+	s, ok := m.sessions[id]
+	if ok {
+		now := time.Now()
+		s.Archived = true
+		s.ArchivedAt = &now
+	}
+	m.mu.Unlock()
+
+	if hasPTY {
+		_ = ps.kill()
+	}
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	m.updateStatus(id, StatusStopped)
+	m.persist()
+	return nil
+}
+
 // ListSessions returns all known sessions with their current status.
 func (m *Manager) ListSessions() []SessionState {
 	m.mu.RLock()
