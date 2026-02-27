@@ -35,6 +35,8 @@ func main() {
 			app.SessionManager,
 			app.WorktreeManager,
 			app.SettingsManager,
+			app.LinearManager,
+			app.AgentTracker,
 		},
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{

@@ -5,7 +5,10 @@ import Terminal from './components/Terminal'
 import SessionHeader from './components/SessionHeader'
 import NewSessionDialog from './components/NewSessionDialog'
 import SettingsDialog from './components/Settings'
+import LinearWorkspacesView from './components/linear/LinearWorkspacesView'
+import AgentDashboardView from './components/dashboard/AgentDashboardView'
 import { useSessionStore } from './stores/sessions'
+import { useNavigationStore } from './stores/navigation'
 
 declare const window: Window & {
   runtime?: {
@@ -18,6 +21,7 @@ function App() {
   const [showNewSession, setShowNewSession] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const { sessions, activeSessionId, setSessions, updateStatus } = useSessionStore()
+  const { activeView } = useNavigationStore()
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null
 
   // Load persisted sessions on mount
@@ -56,26 +60,38 @@ function App() {
 
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
-        {activeSession ? (
+        {activeView === 'workspaces' && (
           <>
-            <SessionHeader session={activeSession} />
-            <div className="flex-1 min-h-0">
-              <Terminal sessionId={activeSession.id} />
-            </div>
+            {activeSession ? (
+              <>
+                <SessionHeader session={activeSession} />
+                <div className="flex-1 min-h-0">
+                  <Terminal sessionId={activeSession.id} />
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center flex-1 text-slate-500 select-none">
+                <div className="text-center">
+                  <p className="text-2xl font-semibold text-slate-400 mb-2">aim</p>
+                  <p className="text-sm">AI Manager — multi-session terminal for Claude Code &amp; Codex</p>
+                  <button
+                    className="mt-6 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
+                    onClick={() => setShowNewSession(true)}
+                  >
+                    + New Session
+                  </button>
+                </div>
+              </div>
+            )}
           </>
-        ) : (
-          <div className="flex items-center justify-center flex-1 text-slate-500 select-none">
-            <div className="text-center">
-              <p className="text-2xl font-semibold text-slate-400 mb-2">aim</p>
-              <p className="text-sm">AI Manager — multi-session terminal for Claude Code &amp; Codex</p>
-              <button
-                className="mt-6 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
-                onClick={() => setShowNewSession(true)}
-              >
-                + New Session
-              </button>
-            </div>
-          </div>
+        )}
+
+        {activeView === 'dashboard' && (
+          <AgentDashboardView />
+        )}
+
+        {activeView === 'linear' && (
+          <LinearWorkspacesView />
         )}
       </div>
 

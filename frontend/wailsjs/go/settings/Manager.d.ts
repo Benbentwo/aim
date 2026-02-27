@@ -6,6 +6,11 @@ export interface Settings {
   defaultWorktree: boolean;
   theme: string;
   shellPath: string;
+  linearApiKey: string;
+  linearTeamId: string;
+  defaultRepoDir: string;
+  linearOAuthToken: string;
+  linearClientId: string;
 }
 
 export function GetSettings(): Promise<Settings>;

@@ -1,5 +1,8 @@
-import { useState } from 'react'
 import { useSessionStore, SessionState, SessionStatus } from '../stores/sessions'
+import { useNavigationStore } from '../stores/navigation'
+import ViewSwitcher from './ViewSwitcher'
+import LinearSidebar from './linear/LinearSidebar'
+import DashboardSidebar from './dashboard/DashboardSidebar'
 
 interface SidebarProps {
   onNewSession: () => void
@@ -63,38 +66,55 @@ function SessionTab({
   )
 }
 
+export { StatusDot, AgentBadge }
+
 export default function Sidebar({ onNewSession, onSettings }: SidebarProps) {
   const { sessions, activeSessionId, setActive } = useSessionStore()
+  const { activeView } = useNavigationStore()
 
   return (
-    <div className="flex flex-col w-56 shrink-0 bg-[#131620] border-r border-slate-800 pt-10 no-select">
-      {/* New session button */}
-      <div className="px-3 mb-3">
-        <button
-          onClick={onNewSession}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          <span className="text-base leading-none">+</span>
-          <span>New</span>
-        </button>
-      </div>
+    <div className="relative flex flex-col w-56 shrink-0 bg-[#131620] border-r border-slate-800 pt-10 no-select">
+      <ViewSwitcher />
 
-      {/* Session tabs */}
-      <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
-        {sessions.map((session) => (
-          <SessionTab
-            key={session.id}
-            session={session}
-            isActive={session.id === activeSessionId}
-            onClick={() => setActive(session.id)}
-          />
-        ))}
-        {sessions.length === 0 && (
-          <p className="text-xs text-slate-600 text-center mt-8 px-2">
-            No sessions yet. Create one to get started.
-          </p>
-        )}
-      </div>
+      {activeView === 'workspaces' && (
+        <>
+          {/* New session button */}
+          <div className="px-3 mb-3">
+            <button
+              onClick={onNewSession}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <span className="text-base leading-none">+</span>
+              <span>New</span>
+            </button>
+          </div>
+
+          {/* Session tabs */}
+          <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
+            {sessions.map((session) => (
+              <SessionTab
+                key={session.id}
+                session={session}
+                isActive={session.id === activeSessionId}
+                onClick={() => setActive(session.id)}
+              />
+            ))}
+            {sessions.length === 0 && (
+              <p className="text-xs text-slate-600 text-center mt-8 px-2">
+                No sessions yet. Create one to get started.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {activeView === 'dashboard' && (
+        <DashboardSidebar />
+      )}
+
+      {activeView === 'linear' && (
+        <LinearSidebar />
+      )}
 
       {/* Settings icon at bottom */}
       <div className="px-3 py-3 border-t border-slate-800">

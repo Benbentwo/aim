@@ -8,10 +8,15 @@ import (
 )
 
 type Settings struct {
-	DefaultAgent    string `json:"defaultAgent"`    // "claude", "codex", "shell"
-	DefaultWorktree bool   `json:"defaultWorktree"` // true = create worktree by default
-	Theme           string `json:"theme"`           // "dark", "light"
-	ShellPath       string `json:"shellPath"`       // e.g. /bin/zsh
+	DefaultAgent     string `json:"defaultAgent"`     // "claude", "codex", "shell"
+	DefaultWorktree  bool   `json:"defaultWorktree"`  // true = create worktree by default
+	Theme            string `json:"theme"`            // "dark", "light"
+	ShellPath        string `json:"shellPath"`        // e.g. /bin/zsh
+	LinearAPIKey     string `json:"linearApiKey"`     // Linear personal API key
+	LinearTeamID     string `json:"linearTeamId"`     // selected Linear team ID
+	DefaultRepoDir   string `json:"defaultRepoDir"`   // base directory for workspaces
+	LinearOAuthToken string `json:"linearOAuthToken"` // Linear OAuth access token
+	LinearClientID   string `json:"linearClientId"`   // custom Linear OAuth client ID
 }
 
 type Manager struct {
@@ -58,10 +63,12 @@ func (m *Manager) defaults() Settings {
 	if shell == "" {
 		shell = "/bin/zsh"
 	}
+	homeDir, _ := os.UserHomeDir()
 	return Settings{
 		DefaultAgent:    "claude",
 		DefaultWorktree: true,
 		Theme:           "dark",
 		ShellPath:       shell,
+		DefaultRepoDir:  filepath.Join(homeDir, "Projects"),
 	}
 }
