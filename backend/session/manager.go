@@ -40,8 +40,8 @@ type Session struct {
 	ID         string        `json:"id"`
 	Config     SessionConfig `json:"config"`
 	WorkDir    string        `json:"workDir"` // actual working directory (worktree or dir)
-	Archived   bool          `json:"archived"`
-	ArchivedAt *time.Time    `json:"archivedAt"`
+	Archived   bool          `json:"archived,omitempty"`
+	ArchivedAt *time.Time    `json:"archivedAt,omitempty"`
 }
 
 // SessionState is what gets persisted and returned to the frontend.
@@ -55,8 +55,8 @@ type SessionState struct {
 	Branch       string     `json:"branch"`
 	Status       string     `json:"status"`
 	RepoPath     string     `json:"repoPath"`
-	Archived     bool       `json:"archived"`
-	ArchivedAt   *time.Time `json:"archivedAt"`
+	Archived     bool       `json:"archived,omitempty"`
+	ArchivedAt   *time.Time `json:"archivedAt,omitempty"`
 }
 
 // Manager manages all active sessions.
@@ -227,6 +227,9 @@ func (m *Manager) ListSessions() []SessionState {
 			WorktreePath: s.Config.WorktreePath,
 			Branch:       s.Config.Branch,
 			Status:       m.statuses[id],
+			RepoPath:     s.Config.RepoPath,
+			Archived:     s.Archived,
+			ArchivedAt:   s.ArchivedAt,
 		})
 	}
 	return result
