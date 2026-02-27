@@ -5,6 +5,7 @@ import Terminal from './components/Terminal'
 import SessionHeader from './components/SessionHeader'
 import AddRepositoryDialog from './components/AddRepositoryDialog'
 import SettingsDialog from './components/Settings'
+import ArchivePanel from './components/ArchivePanel'
 import { useAimStore, AgentType, SessionState, WorkspaceState } from './stores/sessions'
 
 declare const window: Window & {
@@ -32,6 +33,7 @@ function slugifyToBranch(text: string): string {
 function App() {
   const [showAddRepo, setShowAddRepo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showArchive, setShowArchive] = useState(false)
 
   const {
     workspaces,
@@ -163,7 +165,7 @@ function App() {
         onAddRepository={() => setShowAddRepo(true)}
         onSettings={() => setShowSettings(true)}
         onNewSession={handleNewSession}
-        onArchivePanel={() => {}}
+        onArchivePanel={() => setShowArchive(true)}
       />
 
       <div className="flex flex-col flex-1 min-w-0">
@@ -195,6 +197,7 @@ function App() {
 
       {showAddRepo && <AddRepositoryDialog onClose={() => setShowAddRepo(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {showArchive && <ArchivePanel onClose={() => setShowArchive(false)} />}
     </div>
   )
 }
