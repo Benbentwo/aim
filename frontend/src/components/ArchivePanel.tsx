@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAimStore, SessionState, AgentType } from '../stores/sessions'
 
 interface ArchivePanelProps {
@@ -13,8 +13,10 @@ const agentBadge: Record<AgentType, string> = {
 
 function daysAgo(iso?: string): string | null {
   if (!iso) return null
-  const diff = Date.now() - new Date(iso).getTime()
-  const days = Math.floor(diff / 86_400_000)
+  const t = new Date(iso).getTime()
+  if (isNaN(t)) return null
+  const days = Math.floor((Date.now() - t) / 86_400_000)
+  if (days < 0) return null
   return days === 0 ? 'today' : `${days}d ago`
 }
 
@@ -38,7 +40,9 @@ function ArchivedRow({ session, workspaceName }: { session: SessionState; worksp
     try {
       const { BrowserOpenURL } = await import('../../wailsjs/runtime/runtime')
       await BrowserOpenURL(`file://${dir}`)
-    } catch {}
+    } catch (err) {
+      console.error('Open in Finder failed:', err)
+    }
   }
 
   const handleDelete = async () => {
@@ -52,6 +56,7 @@ function ArchivedRow({ session, workspaceName }: { session: SessionState; worksp
       deleteArchivedSession(session.id)
     } catch (err) {
       console.error('Delete failed:', err)
+      setConfirmDelete(false)
     }
   }
 
@@ -100,7 +105,7 @@ function ArchivedRow({ session, workspaceName }: { session: SessionState; worksp
             title="Open in Finder"
             className="p-1 text-slate-500 hover:text-slate-300 transition-colors"
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
             </svg>
           </button>
@@ -117,7 +122,7 @@ function ArchivedRow({ session, workspaceName }: { session: SessionState; worksp
               : 'text-slate-600 hover:text-red-400'
           }`}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6l-1 14H6L5 6" />
             <path d="M10 11v6M14 11v6" />
@@ -131,6 +136,12 @@ function ArchivedRow({ session, workspaceName }: { session: SessionState; worksp
 
 export default function ArchivePanel({ onClose }: ArchivePanelProps) {
   const { workspaces } = useAimStore()
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
 
   // Collect all archived sessions, grouped by workspace
   const groups = workspaces
@@ -161,7 +172,7 @@ export default function ArchivePanel({ onClose }: ArchivePanelProps) {
             onClick={onClose}
             className="text-slate-500 hover:text-slate-300 transition-colors"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
