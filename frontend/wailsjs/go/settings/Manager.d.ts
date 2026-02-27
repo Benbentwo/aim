@@ -11,6 +11,8 @@ export interface Settings {
   defaultRepoDir: string;
   linearOAuthToken: string;
   linearClientId: string;
+  reposBaseDir: string;
+  archiveWorktreeCleanupDays: number;
 }
 
 export function GetSettings(): Promise<Settings>;

@@ -17,3 +17,11 @@ export function ListWorktrees(arg1) {
 export function RemoveWorktree(arg1, arg2) {
     return window['go']['worktree']['Manager']['RemoveWorktree'](arg1, arg2);
 }
+
+export function CloneDestPath(arg1, arg2) {
+    return window['go']['worktree']['Manager']['CloneDestPath'](arg1, arg2);
+}
+
+export function CloneRepo(arg1, arg2) {
+    return window['go']['worktree']['Manager']['CloneRepo'](arg1, arg2);
+}

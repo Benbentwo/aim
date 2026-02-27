@@ -48,6 +48,7 @@ func spawnPTY(s *Session, mgr *Manager) (*ptySession, error) {
 	switch s.Config.Agent {
 	case "claude":
 		cmdName = "claude"
+		cmdArgs = []string{"--dangerously-skip-permissions"}
 	case "codex":
 		cmdName = "codex"
 	default:

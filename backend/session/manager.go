@@ -2,9 +2,15 @@ package session
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -27,24 +33,32 @@ type SessionConfig struct {
 	UseWorktree  bool   `json:"useWorktree"`
 	WorktreePath string `json:"worktreePath"` // filled in by backend if useWorktree
 	Branch       string `json:"branch"`       // git branch for worktree
+	WorkspaceID  string `json:"workspaceId"`
+	RepoPath     string `json:"repoPath"` // main git repo root (needed for worktree cleanup)
 }
 
 // Session is the runtime session record.
 type Session struct {
-	ID      string        `json:"id"`
-	Config  SessionConfig `json:"config"`
-	WorkDir string        `json:"workDir"` // actual working directory (worktree or dir)
+	ID         string        `json:"id"`
+	Config     SessionConfig `json:"config"`
+	WorkDir    string        `json:"workDir"` // actual working directory (worktree or dir)
+	Archived   bool          `json:"archived,omitempty"`
+	ArchivedAt *time.Time    `json:"archivedAt,omitempty"`
 }
 
 // SessionState is what gets persisted and returned to the frontend.
 type SessionState struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Agent        string `json:"agent"`
-	Directory    string `json:"directory"`
-	WorktreePath string `json:"worktreePath"`
-	Branch       string `json:"branch"`
-	Status       string `json:"status"`
+	ID           string     `json:"id"`
+	WorkspaceID  string     `json:"workspaceId"`
+	Name         string     `json:"name"`
+	Agent        string     `json:"agent"`
+	Directory    string     `json:"directory"`
+	WorktreePath string     `json:"worktreePath"`
+	Branch       string     `json:"branch"`
+	Status       string     `json:"status"`
+	RepoPath     string     `json:"repoPath"`
+	Archived     bool       `json:"archived,omitempty"`
+	ArchivedAt   *time.Time `json:"archivedAt,omitempty"`
 }
 
 // Manager manages all active sessions.
@@ -68,8 +82,27 @@ func NewManager() *Manager {
 
 func (m *Manager) SetContext(ctx context.Context) {
 	m.ctx = ctx
-	// Load persisted sessions on startup
 	m.loadPersistedSessions()
+	// Read cleanup setting and pass to cleanup function
+	cleanupDays := m.loadCleanupDays()
+	m.cleanupStaleWorktrees(cleanupDays)
+}
+
+// loadCleanupDays reads the archiveWorktreeCleanupDays setting from disk.
+// Returns 7 (the default) if the file is missing, zero, or unparseable.
+func (m *Manager) loadCleanupDays() int {
+	confDir, _ := os.UserConfigDir()
+	data, err := os.ReadFile(filepath.Join(confDir, "aim", "settings.json"))
+	if err != nil {
+		return 7 // default: clean up after 7 days
+	}
+	var s struct {
+		ArchiveWorktreeCleanupDays int `json:"archiveWorktreeCleanupDays"`
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return 7
+	}
+	return s.ArchiveWorktreeCleanupDays // caller treats 0 as disabled
 }
 
 func (m *Manager) loadPersistedSessions() {
@@ -88,13 +121,17 @@ func (m *Manager) loadPersistedSessions() {
 			ID: ss.ID,
 			Config: SessionConfig{
 				Name:         ss.Name,
+				WorkspaceID:  ss.WorkspaceID,
 				Agent:        ss.Agent,
 				Directory:    ss.Directory,
 				UseWorktree:  ss.WorktreePath != "",
 				WorktreePath: ss.WorktreePath,
 				Branch:       ss.Branch,
+				RepoPath:     ss.RepoPath,
 			},
-			WorkDir: workDir,
+			WorkDir:    workDir,
+			Archived:   ss.Archived,
+			ArchivedAt: ss.ArchivedAt,
 		}
 		m.statuses[ss.ID] = StatusStopped
 	}
@@ -195,6 +232,81 @@ func (m *Manager) CloseSession(id string) error {
 	return nil
 }
 
+// ArchiveSession kills the PTY if running, marks the session archived, and persists.
+// The worktree is left on disk.
+func (m *Manager) ArchiveSession(id string) error {
+	m.mu.Lock()
+	ps, hasPTY := m.ptySessions[id]
+	if hasPTY {
+		delete(m.ptySessions, id)
+	}
+	s, ok := m.sessions[id]
+	if ok {
+		now := time.Now()
+		s.Archived = true
+		s.ArchivedAt = &now
+	}
+	m.mu.Unlock()
+
+	if hasPTY {
+		_ = ps.kill()
+	}
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	m.updateStatus(id, StatusStopped)
+	m.persist()
+	return nil
+}
+
+// UnarchiveSession clears the archived flag so the session reappears in the sidebar.
+// It does NOT re-spawn the PTY — the frontend shows it as stopped.
+func (m *Manager) UnarchiveSession(id string) error {
+	m.mu.Lock()
+	s, ok := m.sessions[id]
+	if ok {
+		s.Archived = false
+		s.ArchivedAt = nil
+	}
+	m.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	m.persist()
+	return nil
+}
+
+// DeleteArchivedSession removes an archived session's metadata and scrollback log.
+// The worktree is NOT removed — the user manages the branch via git.
+func (m *Manager) DeleteArchivedSession(id string) error {
+	m.mu.Lock()
+	s, ok := m.sessions[id]
+	if !ok {
+		m.mu.Unlock()
+		return fmt.Errorf("session %s not found", id)
+	}
+	if !s.Archived {
+		m.mu.Unlock()
+		return fmt.Errorf("session %s is not archived", id)
+	}
+	delete(m.sessions, id)
+	delete(m.statuses, id)
+	// Safety: remove from ptySessions if somehow present (should not happen for archived sessions)
+	ps, hasPTY := m.ptySessions[id]
+	if hasPTY {
+		delete(m.ptySessions, id)
+	}
+	m.mu.Unlock()
+
+	if hasPTY {
+		_ = ps.kill()
+	}
+	dir := m.persister.sessionDir(id)
+	_ = os.RemoveAll(dir)
+	m.persist()
+	return nil
+}
+
 // ListSessions returns all known sessions with their current status.
 func (m *Manager) ListSessions() []SessionState {
 	m.mu.RLock()
@@ -204,20 +316,60 @@ func (m *Manager) ListSessions() []SessionState {
 	for id, s := range m.sessions {
 		result = append(result, SessionState{
 			ID:           id,
+			WorkspaceID:  s.Config.WorkspaceID,
 			Name:         s.Config.Name,
 			Agent:        s.Config.Agent,
 			Directory:    s.Config.Directory,
 			WorktreePath: s.Config.WorktreePath,
 			Branch:       s.Config.Branch,
 			Status:       m.statuses[id],
+			RepoPath:     s.Config.RepoPath,
+			Archived:     s.Archived,
+			ArchivedAt:   s.ArchivedAt,
 		})
 	}
 	return result
 }
 
-// GetSessionLog returns the scrollback log for a session.
+// RenameSessionBranch renames the git branch of a worktree session.
+// Called after the user types their first message so the branch gets a meaningful name.
+func (m *Manager) RenameSessionBranch(id string, newBranch string) error {
+	m.mu.RLock()
+	s, ok := m.sessions[id]
+	m.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %s not found", id)
+	}
+	if s.Config.WorktreePath == "" {
+		return nil // plain directory session, nothing to rename
+	}
+
+	cmd := exec.Command("git", "-C", s.Config.WorktreePath, "branch", "-m", newBranch)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git branch -m: %s", strings.TrimSpace(string(out)))
+	}
+
+	m.mu.Lock()
+	s.Config.Branch = newBranch
+	s.Config.Name = newBranch
+	m.mu.Unlock()
+	m.persist()
+
+	runtime.EventsEmit(m.ctx, fmt.Sprintf("session:branch:%s", id), newBranch)
+	return nil
+}
+
+// GetSessionLog returns the scrollback log for a session as base64.
+// Base64 encoding ensures raw PTY bytes survive JSON serialization without corruption.
 func (m *Manager) GetSessionLog(id string) (string, error) {
-	return m.persister.loadScrollback(id)
+	data, err := os.ReadFile(m.persister.scrollbackFile(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading scrollback: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 // updateStatus updates session status and emits event.
@@ -269,16 +421,79 @@ func (m *Manager) persist() {
 	for id, s := range m.sessions {
 		sessions = append(sessions, SessionState{
 			ID:           id,
+			WorkspaceID:  s.Config.WorkspaceID,
 			Name:         s.Config.Name,
 			Agent:        s.Config.Agent,
 			Directory:    s.Config.Directory,
 			WorktreePath: s.Config.WorktreePath,
 			Branch:       s.Config.Branch,
 			Status:       m.statuses[id],
+			RepoPath:     s.Config.RepoPath,
+			Archived:     s.Archived,
+			ArchivedAt:   s.ArchivedAt,
 		})
 	}
 	m.mu.RUnlock()
 	_ = m.persister.saveSessions(sessions)
+}
+
+// cleanupStaleWorktrees removes worktrees for sessions archived longer than
+// the configured cleanup period. Called on startup after sessions are loaded.
+func (m *Manager) cleanupStaleWorktrees(cleanupDays int) {
+	if cleanupDays == 0 {
+		return // 0 = disabled
+	}
+	cutoff := time.Now().AddDate(0, 0, -cleanupDays)
+
+	// Collect stale candidates while holding the lock (no I/O inside lock)
+	type candidate struct {
+		id           string
+		repoPath     string
+		worktreePath string
+	}
+	m.mu.RLock()
+	var candidates []candidate
+	for _, s := range m.sessions {
+		if !s.Archived || s.ArchivedAt == nil || s.ArchivedAt.After(cutoff) {
+			continue
+		}
+		if s.Config.WorktreePath == "" || s.Config.RepoPath == "" {
+			continue
+		}
+		candidates = append(candidates, candidate{
+			id:           s.ID,
+			repoPath:     s.Config.RepoPath,
+			worktreePath: s.Config.WorktreePath,
+		})
+	}
+	m.mu.RUnlock()
+
+	if len(candidates) == 0 {
+		return
+	}
+
+	// Run git commands outside the lock
+	var cleaned []string
+	for _, c := range candidates {
+		cmd := exec.Command("git", "-C", c.repoPath, "worktree", "remove", "--force", c.worktreePath)
+		if cmd.Run() == nil {
+			cleaned = append(cleaned, c.id)
+		}
+	}
+
+	if len(cleaned) == 0 {
+		return
+	}
+
+	// Update map entries with lock
+	m.mu.Lock()
+	for _, id := range cleaned {
+		if s, ok := m.sessions[id]; ok {
+			s.Config.WorktreePath = "" // worktree removed; session metadata preserved
+		}
+	}
+	m.mu.Unlock()
+	m.persist()
 }
 
 // Shutdown kills all active PTY sessions.

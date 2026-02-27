@@ -8,28 +8,32 @@ import (
 	"github.com/Benbentwo/aim/backend/session"
 	"github.com/Benbentwo/aim/backend/settings"
 	"github.com/Benbentwo/aim/backend/worktree"
+	"github.com/Benbentwo/aim/backend/workspace"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App is the main application struct wired to the Wails runtime.
 type App struct {
-	ctx             context.Context
-	SessionManager  *session.Manager
-	WorktreeManager *worktree.Manager
-	SettingsManager *settings.Manager
-	LinearManager   *linear.Manager
-	AgentTracker    *agent.Tracker
+	ctx              context.Context
+	SessionManager   *session.Manager
+	WorktreeManager  *worktree.Manager
+	SettingsManager  *settings.Manager
+	WorkspaceManager *workspace.Manager
+	LinearManager    *linear.Manager
+	AgentTracker     *agent.Tracker
 }
 
 // NewApp creates and returns a new App instance.
 func NewApp() *App {
-	sm := session.NewManager()
+	sessMgr := session.NewManager()
+	wtrMgr := worktree.NewManager()
 	return &App{
-		SessionManager:  sm,
-		WorktreeManager: worktree.NewManager(),
-		SettingsManager: settings.NewManager(),
-		LinearManager:   linear.NewManager(),
-		AgentTracker:    agent.NewTracker(sm),
+		SessionManager:   sessMgr,
+		WorktreeManager:  wtrMgr,
+		SettingsManager:  settings.NewManager(),
+		WorkspaceManager: workspace.NewManager(sessMgr, wtrMgr),
+		LinearManager:    linear.NewManager(),
+		AgentTracker:     agent.NewTracker(sessMgr),
 	}
 }
 
@@ -39,6 +43,7 @@ func (a *App) startup(ctx context.Context) {
 	a.SessionManager.SetContext(ctx)
 	a.WorktreeManager.SetContext(ctx)
 	a.SettingsManager.SetContext(ctx)
+	a.WorkspaceManager.SetContext(ctx)
 	a.LinearManager.SetContext(ctx)
 	a.AgentTracker.SetContext(ctx)
 
