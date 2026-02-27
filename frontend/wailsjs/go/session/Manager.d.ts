@@ -9,16 +9,21 @@ export interface SessionConfig {
   worktreePath: string;
   branch: string;
   workspaceId: string;
+  repoPath: string;
 }
 
 export interface SessionState {
   id: string;
+  workspaceId: string;
   name: string;
   agent: string;
   directory: string;
   worktreePath: string;
+  repoPath: string;
   branch: string;
   status: string;
+  archived: boolean;
+  archivedAt?: string;
 }
 
 export function CreateSession(config: SessionConfig): Promise<string>;
@@ -29,3 +34,6 @@ export function ListSessions(): Promise<SessionState[]>;
 export function GetSessionLog(id: string): Promise<string>;
 export function ResumeSession(id: string): Promise<void>;
 export function RenameSessionBranch(id: string, newBranch: string): Promise<void>;
+export function ArchiveSession(id: string): Promise<void>;
+export function UnarchiveSession(id: string): Promise<void>;
+export function DeleteArchivedSession(id: string): Promise<void>;

@@ -121,6 +121,7 @@ function App() {
         worktreePath,
         branch,
         workspaceId,
+        repoPath: ws.path,
       })
 
       addSession({
