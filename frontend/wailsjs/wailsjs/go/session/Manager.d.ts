@@ -3,9 +3,13 @@
 import {session} from '../models';
 import {context} from '../models';
 
+export function ArchiveSession(arg1:string):Promise<void>;
+
 export function CloseSession(arg1:string):Promise<void>;
 
 export function CreateSession(arg1:session.SessionConfig):Promise<string>;
+
+export function DeleteArchivedSession(arg1:string):Promise<void>;
 
 export function GetSessionLog(arg1:string):Promise<string>;
 
@@ -20,5 +24,7 @@ export function ResumeSession(arg1:string):Promise<void>;
 export function SetContext(arg1:context.Context):Promise<void>;
 
 export function Shutdown():Promise<void>;
+
+export function UnarchiveSession(arg1:string):Promise<void>;
 
 export function WriteToSession(arg1:string,arg2:string):Promise<void>;

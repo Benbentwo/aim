@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react'
+import { useLinearStore } from '../stores/linear'
 
 interface SettingsData {
   defaultAgent: string
   defaultWorktree: boolean
   theme: string
   shellPath: string
+  linearApiKey: string
+  linearTeamId: string
+  defaultRepoDir: string
+  linearOAuthToken: string
+  linearClientId: string
   reposBaseDir: string
   archiveWorktreeCleanupDays: number
 }
@@ -25,17 +31,47 @@ export default function Settings({ onClose }: SettingsProps) {
     defaultWorktree: true,
     theme: 'dark',
     shellPath: '/bin/zsh',
+    linearApiKey: '',
+    linearTeamId: '',
+    defaultRepoDir: '',
+    linearOAuthToken: '',
+    linearClientId: '',
     reposBaseDir: '',
     archiveWorktreeCleanupDays: 7,
   })
   const [saved, setSaved] = useState(false)
+  const [linearStatus, setLinearStatus] = useState<'disconnected' | 'connected' | 'checking'>('checking')
+  const linearStore = useLinearStore()
 
   useEffect(() => {
     import('../../wailsjs/go/settings/Manager')
       .then(({ GetSettings }) => GetSettings())
-      .then((s: any) => setSettings(s))
-      .catch(() => {})
+      .then((s: any) => {
+        setSettings(s)
+        if (s.linearOAuthToken || s.linearApiKey) {
+          checkLinearConnection()
+        } else {
+          setLinearStatus('disconnected')
+        }
+      })
+      .catch(() => setLinearStatus('disconnected'))
   }, [])
+
+  const checkLinearConnection = async () => {
+    try {
+      const { IsConnected } = await import('../../wailsjs/go/linear/Manager')
+      const connected = await IsConnected()
+      setLinearStatus(connected ? 'connected' : 'disconnected')
+    } catch {
+      setLinearStatus('disconnected')
+    }
+  }
+
+  const handleDisconnect = async () => {
+    await linearStore.disconnect()
+    setSettings((s) => ({ ...s, linearApiKey: '', linearOAuthToken: '' }))
+    setLinearStatus('disconnected')
+  }
 
   const handleSave = async () => {
     try {
@@ -48,9 +84,19 @@ export default function Settings({ onClose }: SettingsProps) {
     }
   }
 
+  const handleBrowseRepoDir = async () => {
+    try {
+      const { OpenDirectoryDialog } = await import('../../wailsjs/go/main/App')
+      const path = await OpenDirectoryDialog('Select Default Repo Directory')
+      if (path) {
+        setSettings((s) => ({ ...s, defaultRepoDir: path as string }))
+      }
+    } catch {}
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#1a1e2e] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="bg-[#1a1e2e] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-white">Settings</h2>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300">
@@ -146,6 +192,87 @@ export default function Settings({ onClose }: SettingsProps) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-slate-700 my-5" />
+
+        {/* Linear section */}
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <label className="text-xs text-slate-400 uppercase tracking-wide">Linear</label>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                linearStatus === 'connected'
+                  ? 'bg-emerald-900 text-emerald-300'
+                  : linearStatus === 'checking'
+                  ? 'bg-slate-700 text-slate-400'
+                  : 'bg-slate-700 text-slate-500'
+              }`}
+            >
+              {linearStatus === 'connected'
+                ? settings.linearOAuthToken
+                  ? 'Connected via OAuth'
+                  : 'Connected via API Key'
+                : linearStatus === 'checking'
+                ? 'Checking...'
+                : 'Not connected'}
+            </span>
+          </div>
+
+          {linearStatus === 'connected' ? (
+            <div className="space-y-2">
+              {linearStore.me && (
+                <p className="text-sm text-slate-300">
+                  Signed in as <span className="font-medium text-slate-200">{linearStore.me.name}</span>
+                  {linearStore.me.email && (
+                    <span className="text-slate-500 ml-1">({linearStore.me.email})</span>
+                  )}
+                </p>
+              )}
+              <button
+                onClick={handleDisconnect}
+                className="px-3 py-1.5 bg-slate-800 border border-slate-700 hover:border-red-800 hover:text-red-400 rounded-lg text-xs text-slate-400 transition-colors"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs text-slate-500 mb-1.5">API Key</label>
+              <input
+                type="password"
+                value={settings.linearApiKey}
+                onChange={(e) => setSettings((s) => ({ ...s, linearApiKey: e.target.value }))}
+                placeholder="lin_api_..."
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-indigo-500 mb-2"
+              />
+              <p className="text-[10px] text-slate-600 mb-3">Or use the Linear view to sign in with OAuth</p>
+            </div>
+          )}
+        </div>
+
+        {/* Default Repo Directory */}
+        <div className="mb-5">
+          <label className="block text-xs text-slate-400 mb-2 uppercase tracking-wide">
+            Default Repo Directory
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={settings.defaultRepoDir}
+              onChange={(e) => setSettings((s) => ({ ...s, defaultRepoDir: e.target.value }))}
+              placeholder="~/Projects"
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+            />
+            <button
+              onClick={handleBrowseRepoDir}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg text-sm text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Browse
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-600 mt-1">Base directory where Linear workspaces find repos</p>
         </div>
 
         <div className="flex gap-3 justify-end">

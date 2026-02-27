@@ -1,5 +1,9 @@
 import { useCallback } from 'react'
 import { useAimStore, WorkspaceState, SessionState, SessionStatus, AgentType } from '../stores/sessions'
+import { useNavigationStore } from '../stores/navigation'
+import ViewSwitcher from './ViewSwitcher'
+import LinearSidebar from './linear/LinearSidebar'
+import DashboardSidebar from './dashboard/DashboardSidebar'
 
 interface SidebarProps {
   onAddRepository: () => void
@@ -113,8 +117,11 @@ function WorkspaceRow({ workspace, isActiveWs, activeSessionId, onSessionClick, 
   )
 }
 
+export { StatusDot }
+
 export default function Sidebar({ onAddRepository, onSettings, onNewSession, onArchivePanel }: SidebarProps) {
   const { workspaces, activeSessionId, activeWorkspaceId, setActiveSession, toggleWorkspace } = useAimStore()
+  const { activeView } = useNavigationStore()
 
   const handleSessionClick = useCallback((sessionId: string, workspaceId: string) => {
     setActiveSession(sessionId, workspaceId)
@@ -123,25 +130,37 @@ export default function Sidebar({ onAddRepository, onSettings, onNewSession, onA
   const archivedCount = workspaces.flatMap((w) => w.sessions).filter((s) => s.archived).length
 
   return (
-    <div className="flex flex-col w-60 shrink-0 bg-[#131620] border-r border-slate-800 pt-10 no-select">
-      <div className="flex-1 overflow-y-auto px-2 space-y-1">
-        {workspaces.map((ws) => (
-          <WorkspaceRow
-            key={ws.id}
-            workspace={ws}
-            isActiveWs={ws.id === activeWorkspaceId}
-            activeSessionId={activeSessionId}
-            onSessionClick={handleSessionClick}
-            onNewSession={onNewSession}
-            onToggle={toggleWorkspace}
-          />
-        ))}
-        {workspaces.length === 0 && (
-          <p className="text-xs text-slate-600 text-center mt-8 px-3">
-            No repositories yet.
-          </p>
-        )}
-      </div>
+    <div className="relative flex flex-col w-60 shrink-0 bg-[#131620] border-r border-slate-800 pt-10 no-select">
+      <ViewSwitcher />
+
+      {activeView === 'workspaces' && (
+        <div className="flex-1 overflow-y-auto px-2 space-y-1">
+          {workspaces.map((ws) => (
+            <WorkspaceRow
+              key={ws.id}
+              workspace={ws}
+              isActiveWs={ws.id === activeWorkspaceId}
+              activeSessionId={activeSessionId}
+              onSessionClick={handleSessionClick}
+              onNewSession={onNewSession}
+              onToggle={toggleWorkspace}
+            />
+          ))}
+          {workspaces.length === 0 && (
+            <p className="text-xs text-slate-600 text-center mt-8 px-3">
+              No repositories yet.
+            </p>
+          )}
+        </div>
+      )}
+
+      {activeView === 'dashboard' && (
+        <DashboardSidebar />
+      )}
+
+      {activeView === 'linear' && (
+        <LinearSidebar />
+      )}
 
       {/* Bottom actions */}
       <div className="px-3 py-3 border-t border-slate-800 space-y-1">

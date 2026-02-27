@@ -6,7 +6,10 @@ import SessionHeader from './components/SessionHeader'
 import AddRepositoryDialog from './components/AddRepositoryDialog'
 import SettingsDialog from './components/Settings'
 import ArchivePanel from './components/ArchivePanel'
+import LinearWorkspacesView from './components/linear/LinearWorkspacesView'
+import AgentDashboardView from './components/dashboard/AgentDashboardView'
 import { useAimStore, AgentType, SessionState, WorkspaceState } from './stores/sessions'
+import { useNavigationStore } from './stores/navigation'
 
 declare const window: Window & {
   runtime?: {
@@ -34,6 +37,7 @@ function App() {
   const [showAddRepo, setShowAddRepo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showArchive, setShowArchive] = useState(false)
+  const { activeView } = useNavigationStore()
 
   const {
     workspaces,
@@ -169,29 +173,41 @@ function App() {
       />
 
       <div className="flex flex-col flex-1 min-w-0">
-        {activeSession ? (
+        {activeView === 'workspaces' && (
           <>
-            <SessionHeader session={activeSession} />
-            <div className="flex-1 min-h-0">
-              <Terminal
-                sessionId={activeSession.id}
-                onFirstMessage={(text) => handleFirstMessage(activeSession.id, text)}
-              />
-            </div>
+            {activeSession ? (
+              <>
+                <SessionHeader session={activeSession} />
+                <div className="flex-1 min-h-0">
+                  <Terminal
+                    sessionId={activeSession.id}
+                    onFirstMessage={(text) => handleFirstMessage(activeSession.id, text)}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center flex-1 text-slate-500 select-none">
+                <div className="text-center">
+                  <p className="text-2xl font-semibold text-slate-400 mb-2">aim</p>
+                  <p className="text-sm">AI Manager — multi-session terminal for Claude Code &amp; Codex</p>
+                  <button
+                    className="mt-6 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
+                    onClick={() => setShowAddRepo(true)}
+                  >
+                    + Add repository
+                  </button>
+                </div>
+              </div>
+            )}
           </>
-        ) : (
-          <div className="flex items-center justify-center flex-1 text-slate-500 select-none">
-            <div className="text-center">
-              <p className="text-2xl font-semibold text-slate-400 mb-2">aim</p>
-              <p className="text-sm">AI Manager — multi-session terminal for Claude Code &amp; Codex</p>
-              <button
-                className="mt-6 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
-                onClick={() => setShowAddRepo(true)}
-              >
-                + Add repository
-              </button>
-            </div>
-          </div>
+        )}
+
+        {activeView === 'dashboard' && (
+          <AgentDashboardView />
+        )}
+
+        {activeView === 'linear' && (
+          <LinearWorkspacesView />
         )}
       </div>
 

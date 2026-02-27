@@ -150,3 +150,19 @@ export const useAimStore = create<AimStore>((set) => ({
   setActiveSession: (sessionId, workspaceId) =>
     set({ activeSessionId: sessionId, activeWorkspaceId: workspaceId }),
 }))
+
+// Compat hook for components that use the flat session interface
+export const useSessionStore = () => {
+  const store = useAimStore()
+  const sessions = store.workspaces.flatMap((w) => w.sessions)
+  return {
+    sessions,
+    activeSessionId: store.activeSessionId,
+    setActive: (id: string | null) => {
+      const session = sessions.find((s) => s.id === id)
+      store.setActiveSession(id, session?.workspaceId ?? null)
+    },
+    addSession: store.addSession,
+    updateStatus: store.updateStatus,
+  }
+}

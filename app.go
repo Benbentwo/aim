@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 
+	"github.com/Benbentwo/aim/backend/agent"
+	"github.com/Benbentwo/aim/backend/linear"
 	"github.com/Benbentwo/aim/backend/session"
 	"github.com/Benbentwo/aim/backend/settings"
 	"github.com/Benbentwo/aim/backend/worktree"
@@ -17,6 +19,8 @@ type App struct {
 	WorktreeManager  *worktree.Manager
 	SettingsManager  *settings.Manager
 	WorkspaceManager *workspace.Manager
+	LinearManager    *linear.Manager
+	AgentTracker     *agent.Tracker
 }
 
 // NewApp creates and returns a new App instance.
@@ -28,6 +32,8 @@ func NewApp() *App {
 		WorktreeManager:  wtrMgr,
 		SettingsManager:  settings.NewManager(),
 		WorkspaceManager: workspace.NewManager(sessMgr, wtrMgr),
+		LinearManager:    linear.NewManager(),
+		AgentTracker:     agent.NewTracker(sessMgr),
 	}
 }
 
@@ -38,10 +44,22 @@ func (a *App) startup(ctx context.Context) {
 	a.WorktreeManager.SetContext(ctx)
 	a.SettingsManager.SetContext(ctx)
 	a.WorkspaceManager.SetContext(ctx)
+	a.LinearManager.SetContext(ctx)
+	a.AgentTracker.SetContext(ctx)
+
+	// Load Linear credentials from settings (OAuth token takes precedence)
+	s := a.SettingsManager.GetSettings()
+	if s.LinearOAuthToken != "" {
+		a.LinearManager.LoadOAuthToken(s.LinearOAuthToken)
+	} else if s.LinearAPIKey != "" {
+		a.LinearManager.LoadAPIKey(s.LinearAPIKey)
+	}
 }
 
 // shutdown is called when the application terminates.
 func (a *App) shutdown(ctx context.Context) {
+	a.AgentTracker.Shutdown()
+	a.LinearManager.StopPolling()
 	a.SessionManager.Shutdown()
 }
 

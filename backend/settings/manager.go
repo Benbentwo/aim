@@ -8,12 +8,17 @@ import (
 )
 
 type Settings struct {
-	DefaultAgent                string `json:"defaultAgent"`                // "claude", "codex", "shell"
-	DefaultWorktree             bool   `json:"defaultWorktree"`             // true = create worktree by default
-	Theme                       string `json:"theme"`                       // "dark", "light"
-	ShellPath                   string `json:"shellPath"`                   // e.g. /bin/zsh
-	ReposBaseDir                string `json:"reposBaseDir"`                // base dir for cloned repos
-	ArchiveWorktreeCleanupDays  int    `json:"archiveWorktreeCleanupDays"`  // days before stale worktrees are removed
+	DefaultAgent               string `json:"defaultAgent"`               // "claude", "codex", "shell"
+	DefaultWorktree            bool   `json:"defaultWorktree"`            // true = create worktree by default
+	Theme                      string `json:"theme"`                      // "dark", "light"
+	ShellPath                  string `json:"shellPath"`                  // e.g. /bin/zsh
+	LinearAPIKey               string `json:"linearApiKey"`               // Linear personal API key
+	LinearTeamID               string `json:"linearTeamId"`               // selected Linear team ID
+	DefaultRepoDir             string `json:"defaultRepoDir"`             // base directory for workspaces
+	LinearOAuthToken           string `json:"linearOAuthToken"`           // Linear OAuth access token
+	LinearClientID             string `json:"linearClientId"`             // custom Linear OAuth client ID
+	ReposBaseDir               string `json:"reposBaseDir"`               // base dir for cloned repos
+	ArchiveWorktreeCleanupDays int    `json:"archiveWorktreeCleanupDays"` // days before stale worktrees are removed
 }
 
 type Manager struct {
@@ -66,6 +71,7 @@ func (m *Manager) defaults() Settings {
 		DefaultWorktree:            true,
 		Theme:                      "dark",
 		ShellPath:                  shell,
+		DefaultRepoDir:             filepath.Join(home, "Projects"),
 		ReposBaseDir:               filepath.Join(home, ".aim", "repos"),
 		ArchiveWorktreeCleanupDays: 7,
 	}
