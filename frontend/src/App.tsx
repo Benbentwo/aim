@@ -68,6 +68,8 @@ function App() {
             worktreePath: s.worktreePath ?? '',
             branch: s.branch ?? '',
             status: 'stopped',
+            archived: s.archived ?? false,
+            archivedAt: s.archivedAt ?? undefined,
           })),
         }))
         setWorkspaces(mapped)
@@ -133,6 +135,7 @@ function App() {
         worktreePath,
         branch,
         status: 'idle',
+        archived: false,
       })
     } catch (err) {
       console.error('Failed to create session:', err)

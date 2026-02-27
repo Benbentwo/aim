@@ -132,6 +132,8 @@ export default function AddRepositoryDialog({ onClose }: AddRepositoryDialogProp
             worktreePath: s.worktreePath ?? '',
             branch: s.branch ?? '',
             status: s.status ?? 'idle',
+            archived: s.archived ?? false,
+            archivedAt: s.archivedAt ?? undefined,
           })),
         })
       }

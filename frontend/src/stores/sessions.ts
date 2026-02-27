@@ -12,6 +12,8 @@ export interface SessionState {
   worktreePath: string
   branch: string
   status: SessionStatus
+  archived: boolean       // true when in archive
+  archivedAt?: string     // ISO timestamp set when archived
 }
 
 export interface WorkspaceState {
@@ -40,6 +42,9 @@ interface AimStore {
   removeSession: (id: string) => void
   updateStatus: (id: string, status: SessionStatus) => void
   updateBranch: (id: string, branch: string) => void
+  archiveSession: (id: string) => void
+  unarchiveSession: (id: string) => void
+  deleteArchivedSession: (id: string) => void
   setActiveSession: (sessionId: string | null, workspaceId: string | null) => void
 }
 
@@ -110,6 +115,35 @@ export const useAimStore = create<AimStore>((set) => ({
         sessions: w.sessions.map((s) =>
           s.id === id ? { ...s, branch, name: branch } : s
         ),
+      })),
+    })),
+
+  archiveSession: (id) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.map((s) =>
+          s.id === id ? { ...s, archived: true, archivedAt: new Date().toISOString() } : s
+        ),
+      })),
+      activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
+    })),
+
+  unarchiveSession: (id) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.map((s) =>
+          s.id === id ? { ...s, archived: false, archivedAt: undefined } : s
+        ),
+      })),
+    })),
+
+  deleteArchivedSession: (id) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        sessions: w.sessions.filter((s) => s.id !== id),
       })),
     })),
 
