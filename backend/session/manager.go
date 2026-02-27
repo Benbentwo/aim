@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -31,25 +32,31 @@ type SessionConfig struct {
 	WorktreePath string `json:"worktreePath"` // filled in by backend if useWorktree
 	Branch       string `json:"branch"`       // git branch for worktree
 	WorkspaceID  string `json:"workspaceId"`
+	RepoPath     string `json:"repoPath"` // main git repo root (needed for worktree cleanup)
 }
 
 // Session is the runtime session record.
 type Session struct {
-	ID      string        `json:"id"`
-	Config  SessionConfig `json:"config"`
-	WorkDir string        `json:"workDir"` // actual working directory (worktree or dir)
+	ID         string        `json:"id"`
+	Config     SessionConfig `json:"config"`
+	WorkDir    string        `json:"workDir"` // actual working directory (worktree or dir)
+	Archived   bool          `json:"archived"`
+	ArchivedAt *time.Time    `json:"archivedAt"`
 }
 
 // SessionState is what gets persisted and returned to the frontend.
 type SessionState struct {
-	ID           string `json:"id"`
-	WorkspaceID  string `json:"workspaceId"`
-	Name         string `json:"name"`
-	Agent        string `json:"agent"`
-	Directory    string `json:"directory"`
-	WorktreePath string `json:"worktreePath"`
-	Branch       string `json:"branch"`
-	Status       string `json:"status"`
+	ID           string     `json:"id"`
+	WorkspaceID  string     `json:"workspaceId"`
+	Name         string     `json:"name"`
+	Agent        string     `json:"agent"`
+	Directory    string     `json:"directory"`
+	WorktreePath string     `json:"worktreePath"`
+	Branch       string     `json:"branch"`
+	Status       string     `json:"status"`
+	RepoPath     string     `json:"repoPath"`
+	Archived     bool       `json:"archived"`
+	ArchivedAt   *time.Time `json:"archivedAt"`
 }
 
 // Manager manages all active sessions.
@@ -99,8 +106,11 @@ func (m *Manager) loadPersistedSessions() {
 				UseWorktree:  ss.WorktreePath != "",
 				WorktreePath: ss.WorktreePath,
 				Branch:       ss.Branch,
+				RepoPath:     ss.RepoPath,
 			},
-			WorkDir: workDir,
+			WorkDir:    workDir,
+			Archived:   ss.Archived,
+			ArchivedAt: ss.ArchivedAt,
 		}
 		m.statuses[ss.ID] = StatusStopped
 	}
@@ -319,6 +329,9 @@ func (m *Manager) persist() {
 			WorktreePath: s.Config.WorktreePath,
 			Branch:       s.Config.Branch,
 			Status:       m.statuses[id],
+			RepoPath:     s.Config.RepoPath,
+			Archived:     s.Archived,
+			ArchivedAt:   s.ArchivedAt,
 		})
 	}
 	m.mu.RUnlock()
