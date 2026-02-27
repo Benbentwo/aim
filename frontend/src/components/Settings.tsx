@@ -119,7 +119,7 @@ export default function Settings({ onClose }: SettingsProps) {
               type="number"
               min={0}
               value={settings.archiveWorktreeCleanupDays}
-              onChange={(e) => setSettings((s) => ({ ...s, archiveWorktreeCleanupDays: parseInt(e.target.value) || 0 }))}
+              onChange={(e) => setSettings((s) => ({ ...s, archiveWorktreeCleanupDays: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
               className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
             />
             <span className="text-xs text-slate-500">0 = never</span>
